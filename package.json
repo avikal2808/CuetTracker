@@ -1,0 +1,19 @@
+{
+  "name": "cuet-commerce-study-tracker",
+  "version": "1.0.0",
+  "description": "Mobile-first, tablet-friendly Commerce Class 11/12 and CUET Study Tracker with rotational queues, smart mock tracking, backlog vault, and dynamic completion ETA.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test:supabase": "node test-supabase.js"
+  },
+  "keywords": [
+    "cuet",
+    "class-12-commerce",
+    "study-tracker",
+    "supabase"
+  ],
+  "author": "",
+  "license": "MIT"
+}

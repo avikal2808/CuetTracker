@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Commerce Class 11/12 & CUET Study Tracker | Target 93%+</title>
+  <meta name="description" content="Mobile-first, tablet-friendly Commerce Class 11/12 and CUET UG Study Tracker with rotational queues, smart mock tracking, backlog vault, and dynamic completion ETA.">
+  <meta name="theme-color" content="#4F8A68">
+
+  <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Application Stylesheet with Exact Palette -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Vendor Libraries via CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <div class="app-viewport-wrapper">
+
+    <!-- Sticky Header -->
+    <header class="app-header">
+      <div class="header-container">
+        <div class="brand-wrapper">
+          <div class="brand-logo-icon">
+            <i data-lucide="graduation-cap"></i>
+          </div>
+          <div class="brand-title-group">
+            <h1>CUET & Commerce</h1>
+            <span class="brand-tagline">Class 11/12 &bull; Mission 93%+</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <button id="header-sync-chip" class="header-status-chip sync-local" onclick="App.openCloudStatusModal()" title="View Cloud Sync Status">
+            <i data-lucide="cloud"></i>
+            <span>Local Storage Active</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main View Panes -->
+    <main class="app-main-content">
+      <!-- 1. "Today" Daily Planner View -->
+      <section id="view-planner" class="view-tab-pane active">
+        <div id="planner-view-container"></div>
+      </section>
+
+      <!-- 2. Dedicated Routine & Time Blocks Schedule View -->
+      <section id="view-schedule" class="view-tab-pane">
+        <div id="schedule-view-container"></div>
+      </section>
+
+      <!-- 3. Syllabus & Queue View -->
+      <section id="view-queue" class="view-tab-pane">
+        <div id="queue-view-container"></div>
+      </section>
+
+      <!-- 3. Smart Mock Test Tracker View -->
+      <section id="view-mocks" class="view-tab-pane">
+        <div id="mocks-view-container"></div>
+      </section>
+
+      <!-- 4. Backlog Vault View -->
+      <section id="view-backlog" class="view-tab-pane">
+        <div id="backlog-view-container"></div>
+      </section>
+
+      <!-- 5. Progress & Dynamic ETA Dashboard -->
+      <section id="view-dashboard" class="view-tab-pane">
+        <div id="dashboard-view-container"></div>
+      </section>
+    </main>
+
+  </div><!-- /app-viewport-wrapper -->
+
+  <!-- Fixed Bottom Navigation Bar (Touch & Mobile First) -->
+  <nav class="bottom-nav-bar" aria-label="Bottom Navigation">
+    <div class="bottom-nav-inner">
+      <button class="bottom-nav-item active" data-tab="planner" aria-label="Today Planner">
+        <i data-lucide="calendar"></i>
+        <span>Today</span>
+        <span id="nav-badge-today" class="nav-badge"></span>
+      </button>
+
+      <button class="bottom-nav-item" data-tab="schedule" aria-label="Daily Schedule & Blocks">
+        <i data-lucide="clock"></i>
+        <span>Schedule</span>
+      </button>
+
+      <button class="bottom-nav-item" data-tab="queue" aria-label="Syllabus and Queue">
+        <i data-lucide="book-open"></i>
+        <span>Syllabus</span>
+      </button>
+
+      <button class="bottom-nav-item" data-tab="mocks" aria-label="Mock Tests">
+        <i data-lucide="award"></i>
+        <span>Mocks</span>
+      </button>
+
+      <button class="bottom-nav-item" data-tab="backlog" aria-label="Backlog Vault">
+        <i data-lucide="archive"></i>
+        <span>Backlog</span>
+        <span id="nav-badge-backlog" class="nav-badge"></span>
+      </button>
+
+      <button class="bottom-nav-item" data-tab="dashboard" aria-label="Progress Dashboard">
+        <i data-lucide="trending-up"></i>
+        <span>Progress</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Toast Notification Floating Pill -->
+  <div id="app-toast" class="app-toast-container" role="status" aria-live="polite"></div>
+
+  <!-- ==========================================================================
+       MODALS
+       ========================================================================== -->
+
+  <!-- 1. Log Mock Test Modal -->
+  <div id="log-mock-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3><i data-lucide="plus-circle" class="text-emerald"></i> Log CUET Mock Test</h3>
+        <button class="btn-close-modal" onclick="Mocks.closeLogMockModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="mock-subject-select">CUET Subject (5 Fixed)</label>
+          <select id="mock-subject-select" class="form-control" onchange="Mocks.handleSubjectChangeInModal(this.value)">
+            <option value="accountancy">Accountancy (Max 200)</option>
+            <option value="business_studies">Business Studies (Max 200)</option>
+            <option value="economics">Economics (Max 200)</option>
+            <option value="english">English - Section IA (Max 200)</option>
+            <option value="general_test">General Test - Section III (Max 250)</option>
+          </select>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="mock-number-input">Auto-Increment Mock #</label>
+            <input type="number" id="mock-number-input" class="form-control" min="1" value="1">
+          </div>
+          <div class="form-group">
+            <label for="mock-date-input">Test Date</label>
+            <input type="date" id="mock-date-input" class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="mock-score-input">Score Obtained</label>
+            <input type="number" id="mock-score-input" class="form-control" placeholder="e.g. 182" step="1">
+          </div>
+          <div class="form-group">
+            <label for="mock-max-score-input">Max Marks</label>
+            <input type="number" id="mock-max-score-input" class="form-control" value="200">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="mock-time-input">Time Taken (Mins)</label>
+            <input type="number" id="mock-time-input" class="form-control" value="45">
+          </div>
+          <div class="form-group">
+            <label for="mock-accuracy-input">Accuracy %</label>
+            <input type="number" id="mock-accuracy-input" class="form-control" value="90" min="0" max="100">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="mock-mistakes-input">Weak Areas / Mistake Analysis</label>
+          <input type="text" id="mock-mistakes-input" class="form-control" placeholder="e.g. Cash flow operating items, Negative marking on Q38">
+        </div>
+
+        <div class="form-group">
+          <label for="mock-notes-input">Session Reflections & Next Actions</label>
+          <textarea id="mock-notes-input" class="form-control" rows="2" placeholder="Key takeaways for subsequent mock..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="Mocks.closeLogMockModal()">Cancel</button>
+        <button class="btn-primary" onclick="Mocks.saveMockEntry()"><i data-lucide="check"></i> Save Mock Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Photo Upload & Text Import Parser Modal -->
+  <div id="parser-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3><i data-lucide="scan-line" class="text-emerald"></i> Import & Photo Parser</h3>
+        <button class="btn-close-modal" onclick="Queue.closeParserModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="parser-subject-select">Target Subject Queue</label>
+          <select id="parser-subject-select" class="form-control">
+            <option value="accountancy">Accountancy</option>
+            <option value="business_studies">Business Studies</option>
+            <option value="economics">Economics</option>
+            <option value="english">English</option>
+            <option value="general_test">General Test</option>
+          </select>
+        </div>
+
+        <div class="parser-tabs-row">
+          <button id="tab-btn-text" class="parser-tab-btn active" onclick="document.getElementById('parser-text-section').style.display='block'; document.getElementById('parser-photo-section').style.display='none'; this.classList.add('active'); document.getElementById('tab-btn-photo').classList.remove('active');">
+            Text / Syllabus Paste
+          </button>
+          <button id="tab-btn-photo" class="parser-tab-btn" onclick="document.getElementById('parser-text-section').style.display='none'; document.getElementById('parser-photo-section').style.display='block'; this.classList.add('active'); document.getElementById('tab-btn-text').classList.remove('active');">
+            Photo Upload / OCR
+          </button>
+        </div>
+
+        <!-- Text Paste Section -->
+        <div id="parser-text-section">
+          <div class="form-group">
+            <label for="parser-raw-text">Paste Topics, Chapters, or Bullets (1 per line)</label>
+            <textarea id="parser-raw-text" class="form-control" rows="4" placeholder="1. Dissolution of Partnership Firm: Realisation Account&#10;2. Accounting for Debentures: Terms of Redemption&#10;3. Solvency & Activity Ratios" oninput="Queue.handleTextParserInput(this.value, document.getElementById('parser-subject-select').value)"></textarea>
+          </div>
+        </div>
+
+        <!-- Photo Upload Section -->
+        <div id="parser-photo-section" style="display:none;">
+          <label class="photo-upload-box">
+            <i data-lucide="camera"></i>
+            <h4>Upload or Take Photo of Syllabus Page</h4>
+            <p>Select textbook index or coaching syllabus handout</p>
+            <input type="file" accept="image/*" style="display:none;" onchange="Queue.handlePhotoUpload(this)">
+          </label>
+          <img id="parser-photo-preview" class="photo-preview-img" alt="Syllabus Preview">
+          <div id="parser-photo-status" class="empty-hint"></div>
+        </div>
+
+        <!-- Detected Topics Preview Checklist -->
+        <div class="form-group">
+          <label>Detected Topics Preview (Check to Include)</label>
+          <div id="parsed-items-list" class="parsed-preview-container">
+            <p class="empty-hint">Paste text or upload an image above to parse topics automatically.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="Queue.closeParserModal()">Cancel</button>
+        <button id="btn-commit-parsed" class="btn-primary" onclick="Queue.commitParsedTopicsToQueue()" disabled>
+          <i data-lucide="plus"></i> Add to Rotational Queue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Edit Planner Task / Topic Modal -->
+  <div id="edit-planner-task-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3><i data-lucide="edit-3" class="text-emerald"></i> Configure Study Block</h3>
+        <button class="btn-close-modal" onclick="App.closeAllModals()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="modal-task-id-hidden">
+        <input type="hidden" id="modal-task-date-hidden">
+        <input type="hidden" id="modal-subtopic-id-hidden">
+
+        <div class="form-group">
+          <label for="modal-task-subject-select">Subject</label>
+          <select id="modal-task-subject-select" class="form-control" onchange="App.renderQueueSuggestionsInModal(this.value)">
+            <option value="accountancy">Accountancy</option>
+            <option value="business_studies">Business Studies</option>
+            <option value="economics">Economics</option>
+            <option value="english">English</option>
+            <option value="general_test">General Test</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="modal-task-topic-input">Topic / Chapter Title</label>
+          <input type="text" id="modal-task-topic-input" class="form-control" placeholder="e.g. Issue of Shares: Pro-rata Allotment">
+        </div>
+
+        <div class="form-group">
+          <label for="modal-task-duration-input">Duration (Minutes)</label>
+          <input type="number" id="modal-task-duration-input" class="form-control" value="45" step="5" min="15" max="180">
+        </div>
+
+        <div class="form-group">
+          <label>Or Pick Next From Rotational Queue:</label>
+          <div id="modal-task-queue-suggestions" class="queue-suggestions-box"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="App.closeAllModals()">Cancel</button>
+        <button class="btn-primary" onclick="App.saveEditPlannerTask()"><i data-lucide="check"></i> Save Block</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Cloud Status & Sync Details Modal -->
+  <div id="cloud-info-modal" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3><i data-lucide="cloud" class="text-emerald"></i> Cloud Sync & Offline Engine</h3>
+        <button class="btn-close-modal" onclick="App.closeCloudStatusModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p>This tracker uses an <strong>offline-first architecture</strong> with live cloud synchronization:</p>
+
+        <div style="background: var(--secondary-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px;">
+          <p style="margin-bottom: 6px;"><strong>Endpoint:</strong> <code>https://lnnhfucpbmedthkozlxs.supabase.co</code></p>
+          <p style="margin-bottom: 6px;"><strong>Table:</strong> <code>student_progress</code></p>
+          <p style="margin-bottom: 6px;"><strong>Local Fallback:</strong> Active &bull; Instant local cache via LocalStorage</p>
+          <p><strong>Auto Midnight Rollover:</strong> Active &bull; Sweeps missed blocks to Vault</p>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label>Connection Diagnostics</label>
+          <button id="btn-run-connection-test" class="btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="App.runConnectionTest()">
+            <i data-lucide="activity"></i> Run Live Connection Test
+          </button>
+        </div>
+
+        <!-- Connection Test Results Box -->
+        <div id="connection-test-results" class="connection-test-results-panel" style="display: none;"></div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label>Sync Controls</label>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary" style="flex: 1;" onclick="Storage.pushToCloud(); App.closeCloudStatusModal();">
+              <i data-lucide="refresh-cw"></i> Sync Now
+            </button>
+            <button class="btn-secondary" style="flex: 1;" onclick="Storage.exportBackupJson();">
+              <i data-lucide="download"></i> Download Backup
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="App.closeCloudStatusModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Scripts (Loaded in dependency order) -->
+  <script src="js/config.js"></script>
+  <script src="js/syllabus-data.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/planner.js"></script>
+  <script src="js/schedule.js"></script>
+  <script src="js/queue.js"></script>
+  <script src="js/mocks.js"></script>
+  <script src="js/backlog.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
