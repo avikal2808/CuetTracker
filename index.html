@@ -20,6 +20,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
 
@@ -159,11 +160,11 @@
         <div class="form-row-2">
           <div class="form-group">
             <label for="mock-score-input">Score Obtained</label>
-            <input type="number" id="mock-score-input" class="form-control" placeholder="e.g. 182" step="1">
+            <input type="number" id="mock-score-input" class="form-control" placeholder="e.g. 182" step="1" oninput="Mocks.handleScoreInput(this.value)">
           </div>
           <div class="form-group">
             <label for="mock-max-score-input">Max Marks</label>
-            <input type="number" id="mock-max-score-input" class="form-control" value="200">
+            <input type="number" id="mock-max-score-input" class="form-control" value="200" oninput="Mocks.handleScoreInput(document.getElementById('mock-score-input')?.value)">
           </div>
         </div>
 
@@ -174,7 +175,7 @@
           </div>
           <div class="form-group">
             <label for="mock-accuracy-input">Accuracy %</label>
-            <input type="number" id="mock-accuracy-input" class="form-control" value="90" min="0" max="100">
+            <input type="number" id="mock-accuracy-input" class="form-control" placeholder="Auto / %" min="0" max="100">
           </div>
         </div>
 
@@ -342,6 +343,13 @@
               <i data-lucide="download"></i> Download Backup
             </button>
           </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border);">
+          <label style="color: var(--error);">Testing & Clean Reset</label>
+          <button class="btn-secondary" style="width: 100%; border-color: rgba(214, 92, 92, 0.4); color: var(--error);" onclick="App.confirmResetAllData();">
+            <i data-lucide="trash-2"></i> Wipe All Data & Start Clean Testing
+          </button>
         </div>
       </div>
       <div class="modal-footer">

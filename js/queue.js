@@ -76,9 +76,14 @@ class QueueController {
       state.planner[today] = Storage.generateTasksForDate(today);
     }
 
-    // Find the first pending block or append
+    // Find first unassigned pending slot (no subtopicId or default prompt text)
     const tasks = state.planner[today];
-    let targetTask = tasks.find(t => t.status === 'pending');
+    let targetTask = tasks.find(t => t.status === 'pending' && (!t.subtopicId || t.topic === 'Add a topic from the queue'));
+
+    // If none unassigned, find by matching subjectId
+    if (!targetTask) {
+      targetTask = tasks.find(t => t.status === 'pending' && t.subjectId === subjectId);
+    }
 
     if (targetTask) {
       targetTask.topic = subtopic.title;
@@ -187,7 +192,7 @@ class QueueController {
     this.renderParserPreview();
   }
 
-  handlePhotoUpload(fileInput) {
+  async handlePhotoUpload(fileInput) {
     const file = fileInput.files && fileInput.files[0];
     if (!file) return;
 
@@ -199,35 +204,48 @@ class QueueController {
     }
 
     if (statusMsg) {
-      statusMsg.innerHTML = `<span class="spinner-inline"></span> Analyzing syllabus image & detecting chapter lines...`;
+      statusMsg.innerHTML = `<span class="spinner-inline"></span> Initializing OCR engine to parse image...`;
     }
 
-    // Simulated OCR extraction that extracts realistic chapters from image
-    setTimeout(() => {
-      const simulatedExtractions = [
-        "Financial Statement of a Company: Heads and Sub-heads",
-        "Accounting Ratios: Solvency and Turnovers with Formulas",
-        "Cash Flow Statement: Financing & Investing Cash Flow adjustments",
-        "Taylor's Scientific Management: 4 Principles & 7 Techniques",
-        "Consumer Protection Act 2019: District Commission & National Redressal"
-      ];
+    const subjectId = document.getElementById('parser-subject-select')?.value || this.selectedSubject;
 
-      const subjectId = document.getElementById('parser-subject-select')?.value || this.selectedSubject;
-      const preview = simulatedExtractions.map((title, idx) => ({
-        id: `custom_ocr_${Date.now()}_${idx}`,
-        title: title,
-        duration: 45,
-        subjectId: subjectId,
-        selected: true
-      }));
+    try {
+      if (window.Tesseract && window.Tesseract.recognize) {
+        const result = await window.Tesseract.recognize(file, 'eng', {
+          logger: m => {
+            if (m.status === 'recognizing text' && statusMsg) {
+              const pct = Math.round((m.progress || 0) * 100);
+              statusMsg.innerHTML = `<span class="spinner-inline"></span> Reading syllabus text (${pct}%)...`;
+            }
+          }
+        });
 
-      this.parsedTopicsPreview = preview;
-      if (statusMsg) {
-        statusMsg.innerHTML = `<span class="text-emerald"><i data-lucide="check-circle-2"></i> Detected ${preview.length} topics successfully!</span>`;
+        const rawText = result?.data?.text || '';
+        this.handleTextParserInput(rawText, subjectId);
+
+        if (this.parsedTopicsPreview.length > 0) {
+          if (statusMsg) {
+            statusMsg.innerHTML = `<span class="text-emerald"><i data-lucide="check-circle-2"></i> Extracted ${this.parsedTopicsPreview.length} topic line(s) from image!</span>`;
+          }
+        } else {
+          if (statusMsg) {
+            statusMsg.innerHTML = `<span class="text-amber"><i data-lucide="alert-circle"></i> No distinct syllabus topics recognized in photo. Please ensure clear lighting or paste text directly.</span>`;
+          }
+        }
+      } else {
+        // Fallback if Tesseract CDN isn't loaded
+        if (statusMsg) {
+          statusMsg.innerHTML = `<span class="text-amber"><i data-lucide="alert-circle"></i> OCR engine is offline. Please paste the topics into the text tab.</span>`;
+        }
       }
-      this.renderParserPreview();
-      if (window.lucide) window.lucide.createIcons();
-    }, 1200);
+    } catch (err) {
+      console.warn('OCR processing error:', err);
+      if (statusMsg) {
+        statusMsg.innerHTML = `<span class="text-error"><i data-lucide="alert-triangle"></i> Could not read image: ${err.message || 'unknown error'}. Please paste text directly.</span>`;
+      }
+    }
+
+    if (window.lucide) window.lucide.createIcons();
   }
 
   toggleParsedItem(index) {

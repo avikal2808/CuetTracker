@@ -253,6 +253,13 @@ class PlannerController {
     // Rollover notice check
     const backlogCount = (state.backlog || []).filter(b => b.status === 'pending').length;
 
+    const dayOfWeek = Storage.getDayOfWeek(this.currentDate);
+    const weeklySchedule = Storage.getWeeklySchedule();
+    const dayConfig = weeklySchedule[dayOfWeek] || Storage.getDefaultWeeklySchedule()[dayOfWeek];
+    const pCode = CONFIG.subjects[dayConfig?.primary?.subject]?.code || 'ACC';
+    const sCode = CONFIG.subjects[dayConfig?.secondary?.subject]?.code || 'BST';
+    const rCode = CONFIG.subjects[dayConfig?.revision?.subject]?.code || 'ECO';
+
     let html = `
       <div class="planner-header-card card">
         <div class="planner-date-nav">
@@ -268,6 +275,21 @@ class PlannerController {
           </div>
           <button class="nav-arrow-btn" onclick="Planner.goToNextDay()" title="Next Day" aria-label="Next Day">
             <i data-lucide="chevron-right"></i>
+          </button>
+        </div>
+
+        <!-- Weekly Rotational Routine Quick Bar -->
+        <div class="planner-routine-bar">
+          <div class="routine-bar-meta">
+            <span class="routine-meta-badge"><i data-lucide="sparkles"></i> ${dayConfig.name}'s Rotation</span>
+            <span class="routine-meta-subs">
+              <span class="subj-tag-mini sub-${dayConfig.primary?.subject}">1: ${pCode}</span>
+              <span class="subj-tag-mini sub-${dayConfig.secondary?.subject}">2: ${sCode}</span>
+              <span class="subj-tag-mini sub-${dayConfig.revision?.subject}">Rev: ${rCode}</span>
+            </span>
+          </div>
+          <button class="btn-auto-assign-today" onclick="Planner.autoAssignToday()" title="Auto-Assign or refresh next active syllabus topics from ${dayConfig.name}'s timetable">
+            <i data-lucide="sparkles"></i> <span>Auto-Assign Routine</span>
           </button>
         </div>
 
@@ -397,6 +419,7 @@ class PlannerController {
                     ${task.subject}
                   </span>
                   ${task.unitTitle ? `<span class="unit-subtitle">${task.unitTitle}</span>` : ''}
+                  ${task.autoAssigned ? `<span class="badge-auto-assigned"><i data-lucide="sparkles"></i> Auto-Assigned</span>` : ''}
                   ${statusTag}
                 </div>
 
@@ -412,6 +435,11 @@ class PlannerController {
                     <button class="btn-task-action btn-reschedule" onclick="Planner.rescheduleTask('${task.id}')">
                       <i data-lucide="clock"></i> Reschedule
                     </button>
+                    ${(!task.subtopicId || task.topic === 'Add a topic from the queue') ? `
+                      <button class="btn-task-action btn-auto-pull" onclick="Planner.autoAssignSlot('${task.id}', '${task.subjectId}')" title="Auto-pull next uncompleted topic from ${task.subject} queue">
+                        <i data-lucide="sparkles"></i> Pull Topic
+                      </button>
+                    ` : ''}
                     <button class="btn-task-action btn-timer-start" onclick="Planner.startFocusTimer('${task.id}', ${task.duration || blockDef.durationMinutes}, '${task.topic.replace(/'/g, "\\'")}')">
                       <i data-lucide="play"></i> Focus (${task.duration || blockDef.durationMinutes}m)
                     </button>
@@ -448,6 +476,52 @@ class PlannerController {
     // Refresh icons
     if (window.lucide) {
       window.lucide.createIcons();
+    }
+  }
+
+  autoAssignToday() {
+    Storage.autoAssignDate(this.currentDate, true);
+    if (window.confetti) {
+      window.confetti({ particleCount: 40, spread: 55, colors: ['#4F8A68', '#4F9D69', '#35634A'] });
+    }
+    const dayOfWeek = Storage.getDayOfWeek(this.currentDate);
+    const weeklySchedule = Storage.getWeeklySchedule();
+    const dayName = weeklySchedule[dayOfWeek]?.name || 'Today';
+    if (window.App) {
+      window.App.showToast(`Auto-assigned next active topics from ${dayName}'s schedule!`, 'success');
+    }
+    this.render();
+  }
+
+  autoAssignSlot(taskId, subjectId) {
+    const state = Storage.getState();
+    const tasks = state.planner[this.currentDate] || [];
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const assignedIds = new Set();
+    tasks.forEach(t => { if (t.subtopicId) assignedIds.add(t.subtopicId); });
+
+    const targetSub = subjectId || task.subjectId || 'accountancy';
+    const topicObj = Storage.getNextUncompletedTopic(targetSub, assignedIds);
+
+    if (topicObj) {
+      task.topic = topicObj.title;
+      task.unitTitle = topicObj.unitTitle;
+      task.subtopicId = topicObj.id;
+      task.duration = topicObj.duration || task.duration;
+      task.subjectId = targetSub;
+      task.subject = CONFIG.subjects[targetSub]?.name || targetSub;
+      task.autoAssigned = true;
+      Storage.updateState(state);
+      if (window.App) {
+        window.App.showToast(`Auto-assigned: "${topicObj.title}"`, 'success');
+      }
+      this.render();
+    } else {
+      if (window.App) {
+        window.App.showToast(`All syllabus topics completed for ${CONFIG.subjects[targetSub]?.name || targetSub}!`, 'info');
+      }
     }
   }
 }

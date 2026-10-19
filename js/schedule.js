@@ -1,19 +1,20 @@
 /**
- * Schedule & Routine Controller
+ * Weekly Schedule & Routine Controller
  * Manages the dedicated "Schedule" tab:
- * - View & tweak fixed daily time blocks (Primary 60m, Secondary 45m, Revision 30m)
- * - Routine preferences (wake-up time, study start time, inter-block breaks)
- * - Visual daily timeline & proportional study distribution
- * - One-click "Apply to Today's Tasks" & "Reset to Recommended Defaults"
- * - Full offline-first LocalStorage and Supabase Cloud Sync
+ * - 7-Day Weekly Timetable (Monday through Sunday)
+ * - Fixed slot configuration: Primary (60m), Secondary (45m), Revision (30m)
+ * - Rotational Auto-Assigner linking timetable days directly to uncompleted syllabus subtopics
+ * - Live queue preview for each block
+ * - 1-Click "Auto-Assign to Today" & "Reset to Recommended Weekly Routine"
+ * - Full offline-first LocalStorage & Supabase Cloud Sync
  */
 class ScheduleController {
   constructor() {
+    this.selectedDayKey = Storage.getDayOfWeek(Storage.getTodayString());
     this.init();
   }
 
   init() {
-    // Listen for storage changes to keep UI up to date
     Storage.on('change', () => {
       if (window.App && window.App.activeTab === 'schedule') {
         this.render();
@@ -27,39 +28,68 @@ class ScheduleController {
     });
   }
 
+  selectDay(dayKey) {
+    this.selectedDayKey = dayKey;
+    this.render();
+  }
+
   render() {
     const container = document.getElementById('schedule-view-container');
     if (!container) return;
 
-    const blocks = Storage.getTimeBlocks();
+    const weeklySchedule = Storage.getWeeklySchedule();
+    const todayDayKey = Storage.getDayOfWeek(Storage.getTodayString());
+    const currentDayKey = this.selectedDayKey || todayDayKey;
+    const currentDay = weeklySchedule[currentDayKey] || Storage.getDefaultWeeklySchedule()[currentDayKey];
+
+    // Compute weekly statistics
+    const daysList = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    let totalWeeklyMinutes = 0;
+    daysList.forEach(dk => {
+      const d = weeklySchedule[dk];
+      if (d) {
+        totalWeeklyMinutes += (parseInt(d.primary?.durationMinutes, 10) || 60);
+        totalWeeklyMinutes += (parseInt(d.secondary?.durationMinutes, 10) || 45);
+        totalWeeklyMinutes += (parseInt(d.revision?.durationMinutes, 10) || 30);
+      }
+    });
+    const totalWeeklyHours = (totalWeeklyMinutes / 60).toFixed(1);
+    const avgDailyMinutes = Math.round(totalWeeklyMinutes / 7);
+
+    // Current day minutes
+    const dayMinutes = (parseInt(currentDay.primary?.durationMinutes, 10) || 60) +
+                       (parseInt(currentDay.secondary?.durationMinutes, 10) || 45) +
+                       (parseInt(currentDay.revision?.durationMinutes, 10) || 30);
+    const dayHours = (dayMinutes / 60).toFixed(1);
+
     const routine = Storage.getRoutineSettings();
-    const totalMinutes = blocks.reduce((acc, b) => acc + (parseInt(b.durationMinutes, 10) || 0), 0);
-    const totalHours = (totalMinutes / 60).toFixed(1);
-    const weeklyHours = ((totalMinutes * 7) / 60).toFixed(1);
 
     let html = `
-      <!-- 1. Hero & Routine Summary Header -->
+      <!-- 1. Hero Header & Weekly Timetable Controls -->
       <div class="schedule-hero-card card">
         <div class="schedule-hero-top">
           <div class="schedule-hero-title-group">
             <div class="schedule-icon-badge">
-              <i data-lucide="clock"></i>
+              <i data-lucide="calendar-range"></i>
             </div>
             <div>
               <div class="schedule-headline-row">
-                <h2>Daily Schedule & Routine</h2>
-                <span class="badge-rotational-rhythm"><i data-lucide="repeat"></i> Fixed 3-Block Rhythm</span>
+                <h2>Weekly Timetable & Schedule Manager</h2>
+                <span class="badge-rotational-rhythm"><i data-lucide="sparkles"></i> Rotational Auto-Assigner Active</span>
               </div>
               <p class="schedule-hero-subtitle">
-                Configure your fixed daily study blocks and routine pacing. Everything syncs directly with Supabase Cloud.
+                Set your repeating 7-day study timetable (Monday to Sunday). The rotational engine reads today's day of the week and automatically pulls the next uncompleted syllabus topics into your Today planner.
               </p>
             </div>
           </div>
           <div class="schedule-hero-actions">
-            <button class="btn-schedule-action btn-apply-today" onclick="Schedule.applyToToday()" title="Apply current block durations & subjects to today's pending tasks">
-              <i data-lucide="calendar-check"></i> <span>Apply to Today</span>
+            <button class="btn-schedule-action btn-apply-today" onclick="Schedule.applyWeeklyScheduleToToday()" title="Auto-Assign Today's blocks using current timetable">
+              <i data-lucide="sparkles"></i> <span>Auto-Assign to Today</span>
             </button>
-            <button class="btn-schedule-action btn-reset-defaults" onclick="Schedule.resetDefaults()" title="Reset to standard 60m / 45m / 30m rhythm">
+            <button class="btn-schedule-action btn-save-routine" onclick="Schedule.saveWeeklySchedule()" title="Save timetable to Supabase Cloud">
+              <i data-lucide="save"></i> <span>Save Timetable</span>
+            </button>
+            <button class="btn-schedule-action btn-reset-defaults" onclick="Schedule.resetWeeklySchedule()" title="Reset to standard Commerce/CUET routine">
               <i data-lucide="rotate-ccw"></i> <span>Reset</span>
             </button>
           </div>
@@ -72,28 +102,28 @@ class ScheduleController {
               <i data-lucide="hourglass"></i>
             </div>
             <div class="stat-meta">
-              <span class="stat-num">${totalMinutes}m <span class="stat-unit">(${totalHours}h/day)</span></span>
-              <span class="stat-lbl">Daily Target Focus</span>
+              <span class="stat-num">${totalWeeklyHours}h <span class="stat-unit">/ week</span></span>
+              <span class="stat-lbl">Weekly Target Focus (${totalWeeklyMinutes}m)</span>
             </div>
           </div>
 
           <div class="schedule-stat-chip">
             <div class="stat-icon-wrap bg-blue">
-              <i data-lucide="layers"></i>
+              <i data-lucide="calendar"></i>
             </div>
             <div class="stat-meta">
-              <span class="stat-num">${blocks.length} Blocks</span>
-              <span class="stat-lbl">Daily Sessions</span>
+              <span class="stat-num">${dayMinutes}m <span class="stat-unit">(${dayHours}h)</span></span>
+              <span class="stat-lbl">${currentDay.name}'s Focus Target</span>
             </div>
           </div>
 
           <div class="schedule-stat-chip">
             <div class="stat-icon-wrap bg-amber">
-              <i data-lucide="calendar"></i>
+              <i data-lucide="layers"></i>
             </div>
             <div class="stat-meta">
-              <span class="stat-num">${weeklyHours}h</span>
-              <span class="stat-lbl">Weekly Target</span>
+              <span class="stat-num">21 Blocks</span>
+              <span class="stat-lbl">3 Fixed Blocks &bull; 7 Days</span>
             </div>
           </div>
 
@@ -103,94 +133,141 @@ class ScheduleController {
             </div>
             <div class="stat-meta">
               <span id="schedule-cloud-text" class="stat-num" style="font-size: 13px;">${Storage.syncMessage || 'Auto-Sync Active'}</span>
-              <span class="stat-lbl">Supabase Cloud State</span>
+              <span class="stat-lbl">Supabase Cloud Sync</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- 2. Visual Daily Routine Timeline Flow -->
-      <div class="schedule-timeline-card card">
-        <div class="card-section-header">
+      <!-- 2. 7-Day Day Selector Bar -->
+      <div class="weekly-selector-card card">
+        <div class="weekly-selector-header">
           <div class="title-with-icon">
-            <i data-lucide="git-commit" class="text-primary"></i>
-            <h3>Visual Routine Flow & Time Allocation</h3>
+            <i data-lucide="calendar" class="text-primary"></i>
+            <h3>Select Day to Configure</h3>
           </div>
-          <span class="card-subtitle-tag">Chronological Day Map</span>
+          <span class="weekly-sync-indicator"><i data-lucide="check-circle-2"></i> Auto-repeats every week</span>
         </div>
 
-        <!-- Proportional Allocation Bar -->
-        <div class="allocation-bar-wrapper">
-          <div class="allocation-bar-track">
-            ${blocks.map(b => {
-              const pct = totalMinutes > 0 ? ((b.durationMinutes / totalMinutes) * 100).toFixed(1) : 33.3;
-              return `
-                <div class="allocation-segment seg-${b.id}" style="width: ${pct}%;" title="${b.title}: ${b.durationMinutes}m (${pct}%)">
-                  <span>${b.title.split(' ')[0]} ${b.durationMinutes}m</span>
-                </div>
-              `;
-            }).join('')}
-          </div>
-          <div class="allocation-legend">
-            <span class="legend-item"><span class="legend-dot dot-primary"></span> Primary (${blocks[0]?.durationMinutes || 60}m)</span>
-            <span class="legend-item"><span class="legend-dot dot-secondary"></span> Secondary (${blocks[1]?.durationMinutes || 45}m)</span>
-            <span class="legend-item"><span class="legend-dot dot-revision"></span> Revision (${blocks[2]?.durationMinutes || 30}m)</span>
-          </div>
-        </div>
+        <div class="weekly-days-tabs" role="tablist">
+          ${daysList.map(dk => {
+            const d = weeklySchedule[dk] || Storage.getDefaultWeeklySchedule()[dk];
+            const isSelected = dk === currentDayKey;
+            const isToday = dk === todayDayKey;
+            const pCode = CONFIG.subjects[d.primary?.subject]?.code || 'ACC';
+            const sCode = CONFIG.subjects[d.secondary?.subject]?.code || 'BST';
+            const rCode = CONFIG.subjects[d.revision?.subject]?.code || 'ECO';
+            const shortName = d.name.slice(0, 3).toUpperCase();
 
-        <!-- Step-by-Step Timeline Node List -->
-        <div class="routine-timeline-track">
-          <!-- Wakeup Node -->
-          <div class="timeline-step step-wake">
-            <div class="timeline-step-bullet"><i data-lucide="sun"></i></div>
-            <div class="timeline-step-content">
-              <div class="step-time-badge">${this.formatTimeDisplay(routine.wakeUpTime || '06:30')}</div>
-              <div class="step-info">
-                <strong>Wake Up & Morning Prep</strong>
-                <p>Hydrate, review flash formula cues & set daily intent.</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Time Blocks as steps -->
-          ${blocks.map((block, idx) => {
-            const subjectName = CONFIG.subjects[block.defaultSubject]?.name || (block.defaultSubject === 'rotational' ? 'Rotational Queue' : block.defaultSubject || 'Domain Subject');
-            const stepClass = `step-${block.id}`;
-            const stepOrderLabel = idx === 0 ? 'Block 1 • Deep Focus' : idx === 1 ? 'Block 2 • Application' : 'Block 3 • Recall & Speed';
             return `
-              <div class="timeline-step ${stepClass}">
-                <div class="timeline-step-bullet"><i data-lucide="${block.icon || 'clock'}"></i></div>
-                <div class="timeline-step-content">
-                  <div class="step-time-badge">${this.formatTimeDisplay(block.startTime || '07:00')} - ${this.formatTimeDisplay(block.endTime || '08:00')}</div>
-                  <div class="step-info">
-                    <div class="step-title-line">
-                      <strong>${block.title} (${block.durationMinutes} mins)</strong>
-                      <span class="step-sub-tag sub-${block.defaultSubject}">${subjectName}</span>
-                    </div>
-                    <p>${block.description || ''}</p>
-                  </div>
-                  <span class="step-order-badge">${stepOrderLabel}</span>
+              <button 
+                class="weekly-day-pill ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" 
+                onclick="Schedule.selectDay('${dk}')"
+                role="tab"
+                aria-selected="${isSelected}"
+              >
+                <div class="pill-day-row">
+                  <span class="pill-day-name">${shortName}</span>
+                  ${isToday ? `<span class="pill-today-badge">TODAY</span>` : ''}
                 </div>
-              </div>
+                <div class="pill-subjects-preview">
+                  <span class="subj-tag-mini sub-${d.primary?.subject}">${pCode}</span>
+                  <span class="subj-tag-mini sub-${d.secondary?.subject}">${sCode}</span>
+                  <span class="subj-tag-mini sub-${d.revision?.subject}">${rCode}</span>
+                </div>
+              </button>
             `;
           }).join('')}
         </div>
       </div>
 
-      <!-- 3. Fixed Daily Time Blocks Tuning Section -->
+      <!-- 3. Current Day Configuration & Live Rotational Previews -->
       <div class="section-title-wrap">
         <div class="title-with-icon">
           <i data-lucide="sliders" class="text-primary"></i>
-          <h3>Configure Fixed Study Blocks</h3>
+          <h3>${currentDay.name}'s Daily Study Blocks</h3>
         </div>
-        <p class="section-subtitle">Tweak the duration, scheduled time window, and target subject for each block.</p>
+        <p class="section-subtitle">
+          Configure the primary, secondary, and revision slots for <strong>${currentDay.name}</strong>. The rotational auto-assigner will pull the next active topics from the syllabus queue.
+        </p>
       </div>
 
       <div class="schedule-blocks-grid">
-        ${blocks.map(block => this.renderBlockTuningCard(block)).join('')}
+        ${this.renderDaySlotCard(currentDayKey, 'primary', currentDay.primary, 'Core Numerical / Heavy Theory', '#4F8A68')}
+        ${this.renderDaySlotCard(currentDayKey, 'secondary', currentDay.secondary, 'Applied Concepts & Practice', '#2F6375')}
+        ${this.renderDaySlotCard(currentDayKey, 'revision', currentDay.revision, 'Recall, Drills & Formulas', '#6C3483')}
       </div>
 
-      <!-- 4. Routine & Habit Settings -->
+      <!-- 4. Weekly Timetable Matrix Overview Table -->
+      <div class="weekly-matrix-card card">
+        <div class="card-section-header">
+          <div class="title-with-icon">
+            <i data-lucide="table" class="text-primary"></i>
+            <h3>Weekly Timetable Master Matrix</h3>
+          </div>
+          <span class="card-subtitle-tag">7-Day Study Rotation At A Glance</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="weekly-matrix-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Primary Block</th>
+                <th>Secondary Block</th>
+                <th>Revision Block</th>
+                <th>Total Time</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${daysList.map(dk => {
+                const d = weeklySchedule[dk] || Storage.getDefaultWeeklySchedule()[dk];
+                const isSelected = dk === currentDayKey;
+                const isToday = dk === todayDayKey;
+                const pSub = CONFIG.subjects[d.primary?.subject]?.name || d.primary?.subject || 'Accountancy';
+                const sSub = CONFIG.subjects[d.secondary?.subject]?.name || d.secondary?.subject || 'Business Studies';
+                const rSub = CONFIG.subjects[d.revision?.subject]?.name || d.revision?.subject || 'Economics';
+                const totalM = (parseInt(d.primary?.durationMinutes, 10) || 60) +
+                               (parseInt(d.secondary?.durationMinutes, 10) || 45) +
+                               (parseInt(d.revision?.durationMinutes, 10) || 30);
+
+                return `
+                  <tr class="matrix-row ${isSelected ? 'row-selected' : ''} ${isToday ? 'row-today' : ''}" onclick="Schedule.selectDay('${dk}')">
+                    <td class="col-day">
+                      <strong>${d.name}</strong>
+                      ${isToday ? `<span class="matrix-today-badge">Today</span>` : ''}
+                    </td>
+                    <td>
+                      <span class="matrix-sub-chip sub-${d.primary?.subject}">
+                        ${pSub} (${d.primary?.durationMinutes || 60}m)
+                      </span>
+                    </td>
+                    <td>
+                      <span class="matrix-sub-chip sub-${d.secondary?.subject}">
+                        ${sSub} (${d.secondary?.durationMinutes || 45}m)
+                      </span>
+                    </td>
+                    <td>
+                      <span class="matrix-sub-chip sub-${d.revision?.subject}">
+                        ${rSub} (${d.revision?.durationMinutes || 30}m)
+                      </span>
+                    </td>
+                    <td class="col-duration"><strong>${totalM}m</strong></td>
+                    <td class="col-action">
+                      <button class="btn-matrix-edit" onclick="event.stopPropagation(); Schedule.selectDay('${dk}')">
+                        ${isSelected ? 'Editing' : 'Edit'}
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5. Routine & Habit Settings -->
       <div class="routine-settings-card card">
         <div class="card-section-header">
           <div class="title-with-icon">
@@ -241,17 +318,17 @@ class ScheduleController {
         </div>
       </div>
 
-      <!-- 5. Bottom Cloud Sync Bar -->
+      <!-- 6. Bottom Cloud Sync Bar -->
       <div class="schedule-cloud-bar card">
         <div class="cloud-bar-left">
           <i data-lucide="shield-check" class="text-emerald"></i>
           <div>
-            <strong>Changes are automatically saved & synced</strong>
-            <p>Every duration adjustment or routine update instantly updates LocalStorage and queues a Supabase push.</p>
+            <strong>Weekly timetable & rotational queues are auto-synced</strong>
+            <p>Every subject assignment and duration change persists to LocalStorage and syncs with Supabase Cloud.</p>
           </div>
         </div>
         <div class="cloud-bar-right">
-          <button class="btn-primary" onclick="Storage.pushToCloud(); App.showToast('Manual sync triggered with Supabase Cloud!', 'success');">
+          <button class="btn-primary" onclick="Storage.pushToCloud(); App.showToast('Weekly routine synced with Supabase Cloud!', 'success');">
             <i data-lucide="refresh-cw"></i> Sync Now
           </button>
         </div>
@@ -265,55 +342,90 @@ class ScheduleController {
     }
   }
 
-  renderBlockTuningCard(block) {
-    const isPrimary = block.id === 'primary';
-    const isSecondary = block.id === 'secondary';
-    const isRevision = block.id === 'revision';
-
-    const defaultBadgeText = isPrimary ? 'Core Focus' : isSecondary ? 'Application' : 'Recall & Speed';
+  renderDaySlotCard(dayKey, slotId, slot, defaultBadgeText, accentColor) {
     const subjectsList = [
       { id: 'accountancy', name: 'Accountancy (ACC)' },
       { id: 'business_studies', name: 'Business Studies (BST)' },
       { id: 'economics', name: 'Economics (ECO)' },
       { id: 'english', name: 'English (ENG)' },
-      { id: 'general_test', name: 'General Test (GT)' },
-      { id: 'rotational', name: 'Rotational Queue (Auto)' }
+      { id: 'general_test', name: 'General Test (GT)' }
     ];
 
+    const currentSubjectId = slot?.subject || (slotId === 'primary' ? 'accountancy' : slotId === 'secondary' ? 'business_studies' : 'economics');
+    const durationMins = parseInt(slot?.durationMinutes, 10) || (slotId === 'primary' ? 60 : slotId === 'secondary' ? 45 : 30);
     const presets = [30, 45, 60, 75, 90];
 
+    // Live preview of what the Rotational Auto-Assigner will pull for this block
+    const nextTopic = Storage.getNextUncompletedTopic(currentSubjectId);
+
     return `
-      <div class="schedule-block-card card block-border-${block.id}">
-        <!-- Block Card Header -->
+      <div class="schedule-block-card card block-border-${slotId}">
+        <!-- Header -->
         <div class="schedule-block-card-header">
           <div class="block-header-left">
-            <span class="block-type-badge ${block.id}">
-              <i data-lucide="${block.icon || 'zap'}"></i> ${block.title}
+            <span class="block-type-badge ${slotId}">
+              <i data-lucide="${slotId === 'primary' ? 'zap' : slotId === 'secondary' ? 'book-open' : 'repeat'}"></i>
+              ${slot?.title || (slotId === 'primary' ? 'Primary Block' : slotId === 'secondary' ? 'Secondary Block' : 'Revision Block')}
             </span>
-            <span class="block-duration-pill">${block.durationMinutes} mins</span>
+            <span class="block-duration-pill">${durationMins} mins</span>
           </div>
           <span class="block-header-purpose-tag">${defaultBadgeText}</span>
         </div>
 
         <div class="schedule-block-card-body">
+          <!-- Subject Select Dropdown -->
+          <div class="form-group">
+            <label for="select-sub-${dayKey}-${slotId}"><i data-lucide="book"></i> Scheduled Subject</label>
+            <select id="select-sub-${dayKey}-${slotId}" class="form-control" onchange="Schedule.updateDaySlotSubject('${dayKey}', '${slotId}', this.value)">
+              ${subjectsList.map(s => `
+                <option value="${s.id}" ${currentSubjectId === s.id ? 'selected' : ''}>
+                  ${s.name}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+
+          <!-- Live Rotational Auto-Assign Preview Box -->
+          <div class="next-up-preview">
+            <div class="next-up-header">
+              <i data-lucide="sparkles" class="text-emerald"></i>
+              <span>Next in Syllabus Queue (Auto-Assign):</span>
+            </div>
+            <div class="next-up-title">${nextTopic?.title || 'No pending subtopic found'}</div>
+            <div class="next-up-unit">${nextTopic?.unitTitle || ''}</div>
+          </div>
+
           <!-- Duration Stepper & Presets -->
           <div class="form-group duration-form-group">
-            <label><i data-lucide="timer"></i> Block Duration (Minutes)</label>
+            <label><i data-lucide="timer"></i> Slot Duration (Minutes)</label>
             <div class="duration-controls-row">
               <div class="duration-stepper">
-                <button type="button" class="btn-stepper" onclick="Schedule.adjustBlockDuration('${block.id}', -5)" title="Decrease 5 minutes">
+                <button type="button" class="btn-stepper" onclick="Schedule.adjustDaySlotDuration('${dayKey}', '${slotId}', -5)" title="Decrease 5 minutes">
                   <i data-lucide="minus"></i>
                 </button>
-                <input type="number" id="input-duration-${block.id}" class="form-control stepper-input" value="${block.durationMinutes}" min="15" max="180" step="5" onchange="Schedule.updateBlockDuration('${block.id}', this.value)">
-                <button type="button" class="btn-stepper" onclick="Schedule.adjustBlockDuration('${block.id}', 5)" title="Increase 5 minutes">
+                <input 
+                  type="number" 
+                  id="input-dur-${dayKey}-${slotId}" 
+                  class="form-control stepper-input" 
+                  value="${durationMins}" 
+                  min="15" 
+                  max="180" 
+                  step="5" 
+                  onchange="Schedule.updateDaySlotDuration('${dayKey}', '${slotId}', this.value)"
+                >
+                <button type="button" class="btn-stepper" onclick="Schedule.adjustDaySlotDuration('${dayKey}', '${slotId}', 5)" title="Increase 5 minutes">
                   <i data-lucide="plus"></i>
                 </button>
               </div>
 
-              <!-- Quick Presets -->
+              <!-- Presets -->
               <div class="duration-presets-group">
                 ${presets.map(mins => `
-                  <button type="button" class="btn-preset ${block.durationMinutes === mins ? 'active' : ''}" onclick="Schedule.updateBlockDuration('${block.id}', ${mins})">
+                  <button 
+                    type="button" 
+                    class="btn-preset ${durationMins === mins ? 'active' : ''}" 
+                    onclick="Schedule.updateDaySlotDuration('${dayKey}', '${slotId}', ${mins})"
+                  >
                     ${mins}m
                   </button>
                 `).join('')}
@@ -321,46 +433,57 @@ class ScheduleController {
             </div>
           </div>
 
-          <!-- Time Slot Window -->
+          <!-- Time Window -->
           <div class="form-row-2">
             <div class="form-group">
-              <label for="time-start-${block.id}"><i data-lucide="clock"></i> Slot Start Time</label>
-              <input type="time" id="time-start-${block.id}" class="form-control" value="${block.startTime || '07:00'}" onchange="Schedule.updateBlockTime('${block.id}', 'startTime', this.value)">
+              <label for="time-start-${dayKey}-${slotId}"><i data-lucide="clock"></i> Start Time</label>
+              <input 
+                type="time" 
+                id="time-start-${dayKey}-${slotId}" 
+                class="form-control" 
+                value="${slot?.startTime || '07:00'}" 
+                onchange="Schedule.updateDaySlotTime('${dayKey}', '${slotId}', 'startTime', this.value)"
+              >
             </div>
             <div class="form-group">
-              <label for="time-end-${block.id}"><i data-lucide="check-circle"></i> Slot End Time</label>
+              <label for="time-end-${dayKey}-${slotId}"><i data-lucide="check-circle"></i> End Time</label>
               <div class="end-time-wrapper">
-                <input type="time" id="time-end-${block.id}" class="form-control" value="${block.endTime || '08:00'}" onchange="Schedule.updateBlockTime('${block.id}', 'endTime', this.value)">
-                <button type="button" class="btn-auto-calc" onclick="Schedule.autoCalcEndTime('${block.id}')" title="Auto-calculate end time from duration">
+                <input 
+                  type="time" 
+                  id="time-end-${dayKey}-${slotId}" 
+                  class="form-control" 
+                  value="${slot?.endTime || '08:00'}" 
+                  onchange="Schedule.updateDaySlotTime('${dayKey}', '${slotId}', 'endTime', this.value)"
+                >
+                <button type="button" class="btn-auto-calc" onclick="Schedule.autoCalcDaySlotEndTime('${dayKey}', '${slotId}')" title="Auto-calculate end time from duration">
                   <i data-lucide="wand-2"></i>
                 </button>
               </div>
             </div>
           </div>
 
-          <!-- Preferred Default Subject -->
+          <!-- Study Strategy Note -->
           <div class="form-group">
-            <label for="subject-select-${block.id}"><i data-lucide="book"></i> Default / Preferred Subject Focus</label>
-            <select id="subject-select-${block.id}" class="form-control" onchange="Schedule.updateBlockSubject('${block.id}', this.value)">
-              ${subjectsList.map(sub => `
-                <option value="${sub.id}" ${block.defaultSubject === sub.id ? 'selected' : ''}>
-                  ${sub.name}
-                </option>
-              `).join('')}
-            </select>
-          </div>
-
-          <!-- Strategy Description / Note -->
-          <div class="form-group">
-            <label for="desc-${block.id}"><i data-lucide="align-left"></i> Study Objective & Method</label>
-            <input type="text" id="desc-${block.id}" class="form-control" value="${this.escapeHtml(block.description || '')}" placeholder="Objective for this session..." onchange="Schedule.updateBlockDescription('${block.id}', this.value)">
+            <label for="desc-${dayKey}-${slotId}"><i data-lucide="align-left"></i> Study Objective</label>
+            <input 
+              type="text" 
+              id="desc-${dayKey}-${slotId}" 
+              class="form-control" 
+              value="${this.escapeHtml(slot?.description || '')}" 
+              placeholder="Session intent..." 
+              onchange="Schedule.updateDaySlotDescription('${dayKey}', '${slotId}', this.value)"
+            >
           </div>
         </div>
       </div>
     `;
   }
 
-  // Helper to format 24h time to readable 12h time
+  escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   formatTimeDisplay(timeStr) {
     if (!timeStr) return '--:--';
     const parts = timeStr.split(':');
@@ -373,140 +496,104 @@ class ScheduleController {
     return `${hour}:${minute} ${ampm}`;
   }
 
-  escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
-
-  // Adjust duration by delta (e.g. +5 or -5)
-  adjustBlockDuration(blockId, delta) {
-    const blocks = Storage.getTimeBlocks();
-    const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
-
-    let current = parseInt(block.durationMinutes, 10) || 45;
-    let newDuration = Math.max(15, Math.min(180, current + delta));
-    this.updateBlockDuration(blockId, newDuration);
-  }
-
-  // Update block duration
-  updateBlockDuration(blockId, duration) {
-    const mins = Math.max(15, Math.min(180, parseInt(duration, 10) || 45));
-    const blocks = Storage.getTimeBlocks().map(b => {
-      if (b.id === blockId) {
-        const updated = { ...b, durationMinutes: mins };
-        // Recalculate badge string
-        const prefix = b.id === 'primary' ? 'Core Focus' : b.id === 'secondary' ? 'Application' : 'Recall & Speed';
-        updated.badge = `${prefix} (${mins}m)`;
-        // Update end time based on start time
-        if (updated.startTime) {
-          updated.endTime = this.calcEndTime(updated.startTime, mins);
-        }
-        return updated;
-      }
-      return b;
-    });
-
-    Storage.updateTimeBlocks(blocks);
-    this.render();
-    if (window.App) {
-      window.App.showToast(`Updated ${blockId} block to ${mins} minutes`, 'success');
-    }
-  }
-
-  // Update time window
-  updateBlockTime(blockId, field, value) {
-    const blocks = Storage.getTimeBlocks().map(b => {
-      if (b.id === blockId) {
-        const updated = { ...b, [field]: value };
-        if (field === 'startTime' && updated.durationMinutes) {
-          updated.endTime = this.calcEndTime(value, updated.durationMinutes);
-        }
-        return updated;
-      }
-      return b;
-    });
-
-    Storage.updateTimeBlocks(blocks);
-    this.render();
-  }
-
-  autoCalcEndTime(blockId) {
-    const blocks = Storage.getTimeBlocks();
-    const block = blocks.find(b => b.id === blockId);
-    if (!block || !block.startTime) return;
-
-    const calcEnd = this.calcEndTime(block.startTime, block.durationMinutes || 45);
-    this.updateBlockTime(blockId, 'endTime', calcEnd);
-    if (window.App) {
-      window.App.showToast(`Auto-calculated end time: ${this.formatTimeDisplay(calcEnd)}`, 'info');
-    }
-  }
-
   calcEndTime(startTimeStr, durationMinutes) {
     const parts = (startTimeStr || '07:00').split(':');
     let h = parseInt(parts[0], 10) || 0;
     let m = parseInt(parts[1], 10) || 0;
-
     let totalM = h * 60 + m + (parseInt(durationMinutes, 10) || 0);
     let endH = Math.floor(totalM / 60) % 24;
     let endM = totalM % 60;
-
     return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
   }
 
-  // Update block preferred subject
-  updateBlockSubject(blockId, subjectId) {
-    const blocks = Storage.getTimeBlocks().map(b => {
-      if (b.id === blockId) {
-        return { ...b, defaultSubject: subjectId };
-      }
-      return b;
-    });
-
-    Storage.updateTimeBlocks(blocks);
+  updateDaySlotSubject(dayKey, slotId, subjectId) {
+    Storage.updateWeeklyDaySlot(dayKey, slotId, { subject: subjectId });
     this.render();
     if (window.App) {
       const subName = CONFIG.subjects[subjectId]?.name || subjectId;
-      window.App.showToast(`Updated ${blockId} block focus subject to ${subName}`, 'success');
+      window.App.showToast(`Updated ${dayKey} ${slotId} block to ${subName}`, 'success');
     }
   }
 
-  // Update block description
-  updateBlockDescription(blockId, desc) {
-    const blocks = Storage.getTimeBlocks().map(b => {
-      if (b.id === blockId) {
-        return { ...b, description: desc };
-      }
-      return b;
-    });
+  updateDaySlotDuration(dayKey, slotId, duration) {
+    const mins = Math.max(15, Math.min(180, parseInt(duration, 10) || 45));
+    const weeklySchedule = Storage.getWeeklySchedule();
+    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
+    const startTime = currentSlot.startTime || '07:00';
+    const endTime = this.calcEndTime(startTime, mins);
 
-    Storage.updateTimeBlocks(blocks);
+    Storage.updateWeeklyDaySlot(dayKey, slotId, {
+      durationMinutes: mins,
+      endTime: endTime
+    });
+    this.render();
+    if (window.App) {
+      window.App.showToast(`Updated ${slotId} block to ${mins} mins`, 'success');
+    }
   }
 
-  // Update routine setting
+  adjustDaySlotDuration(dayKey, slotId, delta) {
+    const weeklySchedule = Storage.getWeeklySchedule();
+    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
+    const cur = parseInt(currentSlot.durationMinutes, 10) || 45;
+    this.updateDaySlotDuration(dayKey, slotId, cur + delta);
+  }
+
+  updateDaySlotTime(dayKey, slotId, field, value) {
+    const weeklySchedule = Storage.getWeeklySchedule();
+    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
+    const updates = { [field]: value };
+    if (field === 'startTime' && currentSlot.durationMinutes) {
+      updates.endTime = this.calcEndTime(value, currentSlot.durationMinutes);
+    }
+    Storage.updateWeeklyDaySlot(dayKey, slotId, updates);
+    this.render();
+  }
+
+  autoCalcDaySlotEndTime(dayKey, slotId) {
+    const weeklySchedule = Storage.getWeeklySchedule();
+    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
+    const calcEnd = this.calcEndTime(currentSlot.startTime || '07:00', currentSlot.durationMinutes || 45);
+    this.updateDaySlotTime(dayKey, slotId, 'endTime', calcEnd);
+    if (window.App) {
+      window.App.showToast(`End time auto-calculated: ${this.formatTimeDisplay(calcEnd)}`, 'info');
+    }
+  }
+
+  updateDaySlotDescription(dayKey, slotId, desc) {
+    Storage.updateWeeklyDaySlot(dayKey, slotId, { description: desc });
+  }
+
   updateRoutineSetting(key, value) {
     Storage.updateRoutineSettings({ [key]: value });
     if (window.App) {
-      window.App.showToast(`Routine setting updated`, 'info');
+      window.App.showToast('Routine setting updated', 'info');
     }
   }
 
-  // Apply current schedule to today's pending tasks
-  applyToToday() {
-    Storage.applyScheduleToToday();
+  saveWeeklySchedule() {
+    Storage.pushToCloud();
     if (window.App) {
-      window.App.showToast("Today's planner slots updated with customized schedule!", 'success');
+      window.App.showToast('Weekly timetable saved & synced with cloud!', 'success');
     }
   }
 
-  // Reset to recommended defaults
-  resetDefaults() {
-    if (confirm("Reset schedule to standard recommended blocks (Primary 60m, Secondary 45m, Revision 30m)?")) {
-      Storage.resetScheduleDefaults();
+  applyWeeklyScheduleToToday() {
+    const today = Storage.getTodayString();
+    Storage.autoAssignDate(today, true);
+    if (window.App) {
+      const dayName = Storage.getDayOfWeek(today).toUpperCase();
+      window.App.showToast(`Auto-assigned Today's blocks from ${dayName} timetable!`, 'success');
+      window.App.navigateToTab('planner');
+    }
+  }
+
+  resetWeeklySchedule() {
+    if (confirm('Reset your 7-day timetable to standard recommended Commerce + CUET study rhythm?')) {
+      Storage.resetWeeklyScheduleDefaults();
       this.render();
       if (window.App) {
-        window.App.showToast("Schedule reset to recommended defaults (60m / 45m / 30m)!", 'info');
+        window.App.showToast('Weekly timetable reset to recommended defaults!', 'info');
       }
     }
   }

@@ -93,13 +93,16 @@ async function runDiagnostics() {
   // -----------------------------------------------------------------
   console.log(`[TEST 3/3] Testing WRITE (Upsert) access to "${CONFIG.supabase.tableName}"...`);
   const t2 = Date.now();
+  const existingRecord = existingRows.find(r => r.id === CONFIG.supabase.studentRecordId);
   const writePayload = {
     id: CONFIG.supabase.studentRecordId,
-    data: {
-      version: 1,
-      lastSyncTest: new Date().toISOString(),
-      status: 'connection_verified'
-    },
+    data: existingRecord && existingRecord.data && Object.keys(existingRecord.data).length > 2
+      ? { ...existingRecord.data, lastSyncTest: new Date().toISOString() }
+      : {
+          version: 1,
+          lastSyncTest: new Date().toISOString(),
+          status: 'verified'
+        },
     updated_at: new Date().toISOString()
   };
 

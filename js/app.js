@@ -443,6 +443,15 @@ CREATE POLICY "Allow anon update" ON public.student_progress FOR UPDATE TO anon 
     };
     reader.readAsText(file);
   }
+
+  confirmResetAllData() {
+    if (confirm('Are you sure you want to completely wipe all mock data, logged tests, and tasks to test thoroughly with a clean slate? This will reset all trackers to zero.')) {
+      Storage.resetToCleanState();
+      this.closeCloudStatusModal();
+      this.showToast('All mock and session data cleared! Clean slate ready for testing.', 'success');
+      this.navigateToTab('planner');
+    }
+  }
 }
 
 // Bootstrap when DOM ready

@@ -3655,3 +3655,421 @@ p {
   flex-shrink: 0;
 }
 
+/* ==========================================================================
+   Weekly Schedule Manager & Rotational Auto-Assigner Styles
+   ========================================================================== */
+
+/* 1. Weekly Day Selector Card & Tabs */
+.weekly-selector-card {
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.weekly-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.weekly-selector-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.weekly-sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary-accent);
+  background: var(--light-accent);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+}
+
+.weekly-sync-indicator i {
+  width: 12px;
+  height: 12px;
+}
+
+.weekly-days-tabs {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 680px) {
+  .weekly-days-tabs {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+  }
+}
+
+.weekly-day-pill {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--secondary-surface);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  min-width: 72px;
+}
+
+.weekly-day-pill:hover {
+  border-color: var(--primary-accent);
+  background: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.weekly-day-pill.active {
+  background: var(--primary-accent);
+  border-color: var(--dark-accent);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(79, 138, 104, 0.25);
+}
+
+.weekly-day-pill.active .pill-day-name {
+  color: #FFFFFF;
+}
+
+.weekly-day-pill.is-today {
+  border-color: var(--warning);
+}
+
+.pill-day-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.pill-day-name {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--main-text);
+  letter-spacing: 0.04em;
+}
+
+.pill-today-badge {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: var(--warning);
+  color: #FFFFFF;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+}
+
+.pill-subjects-preview {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.subj-tag-mini {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--main-text);
+  letter-spacing: 0.02em;
+}
+
+.weekly-day-pill.active .subj-tag-mini {
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+}
+
+/* Subject Tag Colors */
+.subj-tag-mini.sub-accountancy { background: rgba(79, 138, 104, 0.18); color: #2C6647; }
+.subj-tag-mini.sub-business_studies { background: rgba(47, 99, 117, 0.18); color: #1F4C5A; }
+.subj-tag-mini.sub-economics { background: rgba(108, 52, 131, 0.18); color: #522567; }
+.subj-tag-mini.sub-english { background: rgba(75, 123, 99, 0.18); color: #2E5540; }
+.subj-tag-mini.sub-general_test { background: rgba(62, 107, 82, 0.18); color: #254A34; }
+
+.weekly-day-pill.active .subj-tag-mini.sub-accountancy,
+.weekly-day-pill.active .subj-tag-mini.sub-business_studies,
+.weekly-day-pill.active .subj-tag-mini.sub-economics,
+.weekly-day-pill.active .subj-tag-mini.sub-english,
+.weekly-day-pill.active .subj-tag-mini.sub-general_test {
+  background: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+/* 2. Live Rotational Auto-Assign Preview Box */
+.next-up-preview {
+  background: linear-gradient(135deg, rgba(79, 138, 104, 0.08), rgba(220, 235, 221, 0.4));
+  border: 1px solid rgba(79, 138, 104, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-top: 4px;
+}
+
+.next-up-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+.next-up-header i {
+  width: 13px;
+  height: 13px;
+}
+
+.next-up-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--main-text);
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+.next-up-unit {
+  font-size: 11px;
+  color: var(--secondary-text);
+}
+
+/* 3. Weekly Master Timetable Matrix Card & Table */
+.weekly-matrix-card {
+  padding: 18px;
+  margin-bottom: 24px;
+}
+
+.weekly-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.weekly-matrix-table th {
+  padding: 10px 12px;
+  background: var(--secondary-surface);
+  color: var(--secondary-text);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.weekly-matrix-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.matrix-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.matrix-row:hover {
+  background: rgba(79, 138, 104, 0.04);
+}
+
+.matrix-row.row-selected {
+  background: rgba(79, 138, 104, 0.09);
+}
+
+.matrix-row.row-today .col-day strong {
+  color: var(--primary-accent);
+}
+
+.matrix-today-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--warning);
+  color: #FFFFFF;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  margin-left: 6px;
+  text-transform: uppercase;
+}
+
+.matrix-sub-chip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--card-bg);
+  white-space: nowrap;
+}
+
+.matrix-sub-chip.sub-accountancy { border-color: rgba(79, 138, 104, 0.3); color: #2C6647; background: #F3F8F4; }
+.matrix-sub-chip.sub-business_studies { border-color: rgba(47, 99, 117, 0.3); color: #1F4C5A; background: #F0F6F8; }
+.matrix-sub-chip.sub-economics { border-color: rgba(108, 52, 131, 0.3); color: #522567; background: #F7F1F8; }
+.matrix-sub-chip.sub-english { border-color: rgba(75, 123, 99, 0.3); color: #2E5540; background: #F2F7F4; }
+.matrix-sub-chip.sub-general_test { border-color: rgba(62, 107, 82, 0.3); color: #254A34; background: #F1F6F3; }
+
+.col-duration {
+  font-family: var(--font-heading);
+  color: var(--main-text);
+  white-space: nowrap;
+}
+
+.btn-matrix-edit {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--primary-accent);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-matrix-edit:hover {
+  background: var(--light-accent);
+  border-color: var(--primary-accent);
+}
+
+.matrix-row.row-selected .btn-matrix-edit {
+  background: var(--primary-accent);
+  color: #FFFFFF;
+  border-color: var(--dark-accent);
+}
+
+/* 4. Planner Rotational Quick Bar & Badges */
+.planner-routine-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin: 12px 0 16px 0;
+  background: linear-gradient(135deg, rgba(79, 138, 104, 0.08), rgba(220, 235, 221, 0.35));
+  border: 1px solid rgba(79, 138, 104, 0.2);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+}
+
+.routine-bar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.routine-meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-accent);
+}
+
+.routine-meta-badge i {
+  width: 14px;
+  height: 14px;
+}
+
+.routine-meta-subs {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.btn-auto-assign-today {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary-accent);
+  color: #FFFFFF;
+  border: 1px solid var(--dark-accent);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(79, 138, 104, 0.2);
+  white-space: nowrap;
+}
+
+.btn-auto-assign-today:hover {
+  background: var(--dark-accent);
+  transform: translateY(-1px);
+}
+
+.btn-auto-assign-today i {
+  width: 14px;
+  height: 14px;
+}
+
+/* Auto-Assigned Pill on Task Card */
+.badge-auto-assigned {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--primary-accent);
+  background: rgba(79, 138, 104, 0.12);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(79, 138, 104, 0.25);
+  margin-left: 6px;
+}
+
+.badge-auto-assigned i {
+  width: 11px;
+  height: 11px;
+}
+
+.btn-auto-pull {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(79, 138, 104, 0.12);
+  color: var(--primary-accent);
+  border: 1px solid rgba(79, 138, 104, 0.3);
+}
+
+.btn-auto-pull:hover {
+  background: var(--primary-accent);
+  color: #FFFFFF;
+}
+
+.btn-save-routine {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--main-text);
+}
+
+.btn-save-routine:hover {
+  background: var(--secondary-surface);
+  border-color: var(--primary-accent);
+}
+
+

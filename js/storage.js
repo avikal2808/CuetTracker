@@ -129,6 +129,7 @@ class StudyStorage {
         autoMidnightRollover: true,
         reminderAlerts: true
       },
+      weeklySchedule: this.getDefaultWeeklySchedule(),
       planner: {
         [today]: initialTasks
       },
@@ -141,6 +142,228 @@ class StudyStorage {
         stream: 'Class 12 Commerce + CUET UG',
         targetScore: '93%+',
         targetCollege: 'SRCC / Hindu / St. Stephen’s / LSR'
+      }
+    };
+  }
+
+  getDefaultWeeklySchedule() {
+    return {
+      monday: {
+        dayKey: 'monday',
+        name: 'Monday',
+        primary: {
+          id: 'primary',
+          title: 'Primary Block',
+          durationMinutes: 60,
+          startTime: '07:00',
+          endTime: '08:00',
+          subject: 'accountancy',
+          description: 'Numerical deep dive & partnership accounting'
+        },
+        secondary: {
+          id: 'secondary',
+          title: 'Secondary Block',
+          durationMinutes: 45,
+          startTime: '15:30',
+          endTime: '16:15',
+          subject: 'business_studies',
+          description: 'Case studies & business management theory'
+        },
+        revision: {
+          id: 'revision',
+          title: 'Revision Block',
+          durationMinutes: 30,
+          startTime: '20:30',
+          endTime: '21:00',
+          subject: 'economics',
+          description: 'Formulas, definitions & MCQ recall'
+        }
+      },
+      tuesday: {
+        dayKey: 'tuesday',
+        name: 'Tuesday',
+        primary: {
+          id: 'primary',
+          title: 'Primary Block',
+          durationMinutes: 60,
+          startTime: '07:00',
+          endTime: '08:00',
+          subject: 'economics',
+          description: 'Macroeconomics models & Indian Economic Development'
+        },
+        secondary: {
+          id: 'secondary',
+          title: 'Secondary Block',
+          durationMinutes: 45,
+          startTime: '15:30',
+          endTime: '16:15',
+          subject: 'english',
+          description: 'Reading comprehension passages & literary vocabulary'
+        },
+        revision: {
+          id: 'revision',
+          title: 'Revision Block',
+          durationMinutes: 30,
+          startTime: '20:30',
+          endTime: '21:00',
+          subject: 'accountancy',
+          description: 'Quick accounting ratios & journal drills'
+        }
+      },
+      wednesday: {
+        dayKey: 'wednesday',
+        name: 'Wednesday',
+        primary: {
+          id: 'primary',
+          title: 'Primary Block',
+          durationMinutes: 60,
+          startTime: '07:00',
+          endTime: '08:00',
+          subject: 'accountancy',
+          description: 'Share capital, pro-rata & forfeiture entries'
+        },
+        secondary: {
+          id: 'secondary',
+          title: 'Secondary Block',
+          durationMinutes: 45,
+          startTime: '15:30',
+          endTime: '16:15',
+          subject: 'business_studies',
+          description: 'Management principles & business environment'
+        },
+        revision: {
+          id: 'revision',
+          title: 'Revision Block',
+          durationMinutes: 30,
+          startTime: '20:30',
+          endTime: '21:00',
+          subject: 'general_test',
+          description: 'Numerical ability & mental aptitude drill'
+        }
+      },
+      thursday: {
+        dayKey: 'thursday',
+        name: 'Thursday',
+        primary: {
+          id: 'primary',
+          title: 'Primary Block',
+          durationMinutes: 60,
+          startTime: '07:00',
+          endTime: '08:00',
+          subject: 'economics',
+          description: 'National Income calculation & Money/Banking'
+        },
+        secondary: {
+          id: 'secondary',
+          title: 'Secondary Block',
+          durationMinutes: 45,
+          startTime: '15:30',
+          endTime: '16:15',
+          subject: 'accountancy',
+          description: 'Debentures & cash flow statement methods'
+        },
+        revision: {
+          id: 'revision',
+          title: 'Revision Block',
+          durationMinutes: 30,
+          startTime: '20:30',
+          endTime: '21:00',
+          subject: 'english',
+          description: 'Sentence rearrangement, idioms & grammar rules'
+        }
+      },
+      friday: {
+        dayKey: 'friday',
+        name: 'Friday',
+        primary: {
+          id: 'primary',
+          title: 'Primary Block',
+          durationMinutes: 60,
+          startTime: '07:00',
+          endTime: '08:00',
+          subject: 'business_studies',
+          description: 'Financial management & marketing management'
+        },
+        secondary: {
+          id: 'secondary',
+          title: 'Secondary Block',
+          durationMinutes: 45,
+          startTime: '15:30',
+          endTime: '16:15',
+          subject: 'economics',
+          description: 'Comparative development & government budget'
+        },
+        revision: {
+          id: 'revision',
+          title: 'Revision Block',
+          durationMinutes: 30,
+          startTime: '20:30',
+          endTime: '21:00',
+          subject: 'general_test',
+          description: 'Current affairs, static GK & analytical reasoning'
+        }
+      },
+      saturday: {
+        dayKey: 'saturday',
+        name: 'Saturday',
+        primary: {
+          id: 'primary',
+          title: 'Primary Block',
+          durationMinutes: 60,
+          startTime: '07:00',
+          endTime: '08:00',
+          subject: 'accountancy',
+          description: 'Full-length practical problem sets & adjustments'
+        },
+        secondary: {
+          id: 'secondary',
+          title: 'Secondary Block',
+          durationMinutes: 45,
+          startTime: '15:30',
+          endTime: '16:15',
+          subject: 'english',
+          description: 'CUET timed RC passages & verbal ability'
+        },
+        revision: {
+          id: 'revision',
+          title: 'Revision Block',
+          durationMinutes: 30,
+          startTime: '20:30',
+          endTime: '21:00',
+          subject: 'business_studies',
+          description: 'Consumer Protection Act & speedy revision'
+        }
+      },
+      sunday: {
+        dayKey: 'sunday',
+        name: 'Sunday',
+        primary: {
+          id: 'primary',
+          title: 'Primary Block',
+          durationMinutes: 60,
+          startTime: '07:00',
+          endTime: '08:00',
+          subject: 'general_test',
+          description: 'Full Section III practice paper & speed drill'
+        },
+        secondary: {
+          id: 'secondary',
+          title: 'Secondary Block',
+          durationMinutes: 45,
+          startTime: '15:30',
+          endTime: '16:15',
+          subject: 'accountancy',
+          description: 'Weekly error review & balance sheet master drill'
+        },
+        revision: {
+          id: 'revision',
+          title: 'Revision Block',
+          durationMinutes: 30,
+          startTime: '20:30',
+          endTime: '21:00',
+          subject: 'economics',
+          description: 'Weekly key terms & formula notebook review'
+        }
       }
     };
   }
@@ -162,17 +385,33 @@ class StudyStorage {
     return def;
   }
 
-  /** Legacy seed IDs shipped in early builds — strip on load so handoff starts clean. */
+  /** Legacy seed IDs and mock samples shipped in early builds — strip on load so handoff starts clean. */
   stripLegacySeedData(state) {
     const seedMockIds = new Set(['mock_1', 'mock_2', 'mock_3', 'mock_4', 'mock_5']);
     const seedBacklogIds = new Set(['bl_sample_1']);
     if (Array.isArray(state.mocks)) {
-      state.mocks = state.mocks.filter(m => !seedMockIds.has(m.id));
+      state.mocks = state.mocks.filter(m => !seedMockIds.has(m.id) && !String(m.id).startsWith('mock_sample') && !String(m.id).startsWith('test_'));
     }
     if (Array.isArray(state.backlog)) {
-      state.backlog = state.backlog.filter(b => !seedBacklogIds.has(b.id));
+      state.backlog = state.backlog.filter(b => !seedBacklogIds.has(b.id) && !String(b.id).startsWith('bl_sample'));
+    }
+    if (state.planner && typeof state.planner === 'object') {
+      Object.keys(state.planner).forEach(dateKey => {
+        if (Array.isArray(state.planner[dateKey])) {
+          state.planner[dateKey] = state.planner[dateKey].filter(t => !String(t.id).startsWith('task_sample') && !String(t.id).startsWith('sample_'));
+        }
+      });
     }
     return state;
+  }
+
+  resetToCleanState() {
+    const def = this.getDefaultState();
+    this.state = def;
+    this.saveLocally(this.state);
+    this.emit('change', this.state);
+    this.pushToCloud();
+    return this.state;
   }
 
   mergeWithDefault(existing) {
@@ -180,6 +419,9 @@ class StudyStorage {
     const merged = {
       ...def,
       ...existing,
+      weeklySchedule: (existing.weeklySchedule && typeof existing.weeklySchedule === 'object' && Object.keys(existing.weeklySchedule).length >= 7)
+        ? existing.weeklySchedule
+        : def.weeklySchedule,
       timeBlocks: existing.timeBlocks && Array.isArray(existing.timeBlocks) && existing.timeBlocks.length > 0
         ? existing.timeBlocks
         : def.timeBlocks,
@@ -237,24 +479,7 @@ class StudyStorage {
 
   applyScheduleToToday() {
     const today = this.getTodayString();
-    const blocks = this.getTimeBlocks();
-    this.updateState(state => {
-      if (!state.planner) state.planner = {};
-      const todayTasks = state.planner[today] || [];
-
-      blocks.forEach(block => {
-        const existingTask = todayTasks.find(t => t.blockId === block.id);
-        if (existingTask && existingTask.status === 'pending') {
-          existingTask.duration = parseInt(block.durationMinutes, 10) || existingTask.duration;
-          existingTask.blockTitle = `${block.title} (${block.durationMinutes}m)`;
-          if (block.defaultSubject && (!existingTask.subjectId || existingTask.subjectId === '')) {
-            existingTask.subjectId = block.defaultSubject;
-            existingTask.subject = CONFIG.subjects[block.defaultSubject]?.name || existingTask.subject;
-          }
-        }
-      });
-      return state;
-    });
+    this.autoAssignDate(today, false);
   }
 
   resetScheduleDefaults() {
@@ -471,11 +696,7 @@ class StudyStorage {
       const t2 = performance.now();
       const testPayload = {
         id: CONFIG.supabase.studentRecordId,
-        data: {
-          version: 1,
-          lastSyncTest: new Date().toISOString(),
-          status: 'verified'
-        },
+        data: this.state || this.getDefaultState(),
         updated_at: new Date().toISOString()
       };
 
@@ -571,34 +792,234 @@ class StudyStorage {
     // Ensure today's date has task slots initialized if empty
     if (!this.state.planner[today] || this.state.planner[today].length === 0) {
       this.state.planner[today] = this.generateTasksForDate(today);
+    } else {
+      // Auto-assign any pending unassigned task slots
+      const pendingEmpty = this.state.planner[today].filter(t => t.status === 'pending' && (!t.subtopicId || t.topic === 'Add a topic from the queue'));
+      if (pendingEmpty.length > 0) {
+        this.autoAssignDate(today, false);
+      }
     }
 
     this.saveLocally(this.state);
   }
 
-  generateTasksForDate(dateStr) {
-    const blocks = this.getTimeBlocks();
-    const subjectsList = ['accountancy', 'business_studies', 'economics', 'english', 'general_test'];
+  getDayOfWeek(dateStr) {
+    if (!dateStr) dateStr = this.getTodayString();
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      return days[d.getDay()] || 'monday';
+    }
+    return 'monday';
+  }
 
-    return blocks.map((block, index) => {
-      const subjectKey = (block.defaultSubject && CONFIG.subjects[block.defaultSubject])
-        ? block.defaultSubject
-        : subjectsList[index % subjectsList.length];
+  getWeeklySchedule() {
+    if (this.state && this.state.weeklySchedule && typeof this.state.weeklySchedule === 'object' && Object.keys(this.state.weeklySchedule).length >= 7) {
+      return this.state.weeklySchedule;
+    }
+    return this.getDefaultWeeklySchedule();
+  }
+
+  updateWeeklySchedule(newWeeklySchedule) {
+    this.updateState(state => {
+      state.weeklySchedule = {
+        ...(state.weeklySchedule || this.getDefaultWeeklySchedule()),
+        ...newWeeklySchedule
+      };
+      return state;
+    });
+  }
+
+  updateWeeklyDaySlot(dayKey, slotId, updates) {
+    this.updateState(state => {
+      if (!state.weeklySchedule) state.weeklySchedule = this.getDefaultWeeklySchedule();
+      if (!state.weeklySchedule[dayKey]) state.weeklySchedule[dayKey] = {};
+      if (!state.weeklySchedule[dayKey][slotId]) state.weeklySchedule[dayKey][slotId] = {};
+      state.weeklySchedule[dayKey][slotId] = {
+        ...state.weeklySchedule[dayKey][slotId],
+        ...updates
+      };
+      return state;
+    });
+  }
+
+  resetWeeklyScheduleDefaults() {
+    const def = this.getDefaultWeeklySchedule();
+    this.updateState(state => {
+      state.weeklySchedule = JSON.parse(JSON.stringify(def));
+      return state;
+    });
+  }
+
+  /**
+   * Rotational Auto-Assigner:
+   * Finds the next uncompleted subtopic from the subject queue or syllabus.
+   * Smartly skips subtopics that are completed or pre-marked as "Already Done".
+   */
+  getNextUncompletedTopic(subjectId, excludedIds = new Set()) {
+    if (!subjectId) return null;
+
+    // 1. Search in student rotational queues
+    const queue = (this.state?.queues?.[subjectId] || []);
+    for (const item of queue) {
+      if (!item.isCompleted && !this.isSubtopicDone(item.id) && !excludedIds.has(item.id)) {
+        return {
+          id: item.id,
+          title: item.title,
+          unitTitle: item.unitTitle || (CONFIG.subjects[subjectId]?.name || 'Syllabus'),
+          duration: item.duration || 45,
+          subjectId: subjectId
+        };
+      }
+    }
+
+    // 2. Fallback to DEFAULT_SYLLABUS
+    const sub = DEFAULT_SYLLABUS[subjectId];
+    if (sub && Array.isArray(sub.units)) {
+      for (const unit of sub.units) {
+        for (const st of unit.subtopics) {
+          if (!this.isSubtopicDone(st.id) && !excludedIds.has(st.id)) {
+            return {
+              id: st.id,
+              title: st.title,
+              unitTitle: unit.title,
+              duration: st.minutes || 45,
+              subjectId: subjectId
+            };
+          }
+        }
+      }
+    }
+
+    // 3. If all subtopics completed, provide a high-yield mastery recall topic
+    const subjectName = CONFIG.subjects[subjectId]?.name || subjectId;
+    return {
+      id: null,
+      title: `${subjectName} Master Revision & High-Yield CUET MCQs`,
+      unitTitle: 'Mastery & Speed Recall (Queue Completed)',
+      duration: 45,
+      subjectId: subjectId
+    };
+  }
+
+  generateTasksForDate(dateStr) {
+    const dayOfWeek = this.getDayOfWeek(dateStr);
+    const weeklySchedule = this.getWeeklySchedule();
+    const dayConfig = weeklySchedule[dayOfWeek] || this.getDefaultWeeklySchedule()[dayOfWeek];
+
+    const slotKeys = ['primary', 'secondary', 'revision'];
+    const assignedIds = new Set();
+
+    return slotKeys.map((slotKey, index) => {
+      const slot = dayConfig?.[slotKey] || {
+        id: slotKey,
+        title: slotKey === 'primary' ? 'Primary Block' : slotKey === 'secondary' ? 'Secondary Block' : 'Revision Block',
+        durationMinutes: slotKey === 'primary' ? 60 : slotKey === 'secondary' ? 45 : 30,
+        startTime: slotKey === 'primary' ? '07:00' : slotKey === 'secondary' ? '15:30' : '20:30',
+        endTime: slotKey === 'primary' ? '08:00' : slotKey === 'secondary' ? '16:15' : '21:00',
+        subject: slotKey === 'primary' ? 'accountancy' : slotKey === 'secondary' ? 'business_studies' : 'economics'
+      };
+
+      const subjectKey = slot.subject || (slotKey === 'primary' ? 'accountancy' : slotKey === 'secondary' ? 'business_studies' : 'economics');
+      const topicObj = this.getNextUncompletedTopic(subjectKey, assignedIds);
+      if (topicObj?.id) {
+        assignedIds.add(topicObj.id);
+      }
+
+      const duration = parseInt(slot.durationMinutes, 10) || (slotKey === 'primary' ? 60 : slotKey === 'secondary' ? 45 : 30);
+      const subjectName = CONFIG.subjects[subjectKey]?.name || 'Commerce';
 
       return {
         id: `task_${Date.now()}_${index}`,
-        blockId: block.id,
-        blockTitle: `${block.title} (${block.durationMinutes}m)`,
-        duration: parseInt(block.durationMinutes, 10) || 45,
-        subject: CONFIG.subjects[subjectKey]?.name || 'Commerce',
+        blockId: slot.id || slotKey,
+        blockTitle: `${slot.title || (slotKey === 'primary' ? 'Primary Block' : slotKey === 'secondary' ? 'Secondary Block' : 'Revision Block')} (${duration}m)`,
+        duration: duration,
+        startTime: slot.startTime || '',
+        endTime: slot.endTime || '',
+        subject: subjectName,
         subjectId: subjectKey,
-        topic: 'Add a topic from the queue',
-        unitTitle: 'Select from syllabus',
-        subtopicId: null,
+        topic: topicObj ? topicObj.title : 'Add a topic from the queue',
+        unitTitle: topicObj ? topicObj.unitTitle : 'Select from syllabus',
+        subtopicId: topicObj?.id || null,
         status: 'pending',
         scheduledDate: dateStr,
-        completedAt: null
+        completedAt: null,
+        autoAssigned: Boolean(topicObj?.id)
       };
+    });
+  }
+
+  autoAssignDate(dateStr, force = false) {
+    if (!dateStr) dateStr = this.getTodayString();
+    const dayOfWeek = this.getDayOfWeek(dateStr);
+    const weeklySchedule = this.getWeeklySchedule();
+    const dayConfig = weeklySchedule[dayOfWeek] || this.getDefaultWeeklySchedule()[dayOfWeek];
+
+    const todayTasks = this.state.planner?.[dateStr] || [];
+    const hasDoneTasks = todayTasks.some(t => t.status === 'done');
+
+    if (hasDoneTasks && !force) {
+      // Preserve completed tasks, only auto-assign pending blocks
+      const assignedIds = new Set();
+      todayTasks.forEach(t => { if (t.subtopicId) assignedIds.add(t.subtopicId); });
+
+      this.updateState(state => {
+        if (!state.planner) state.planner = {};
+        const tasks = state.planner[dateStr] || [];
+        ['primary', 'secondary', 'revision'].forEach(slotKey => {
+          let task = tasks.find(t => t.blockId === slotKey);
+          const slot = dayConfig?.[slotKey];
+          if (!slot) return;
+          const subjectKey = slot.subject;
+
+          if (task && task.status === 'pending') {
+            const topicObj = this.getNextUncompletedTopic(subjectKey, assignedIds);
+            if (topicObj) {
+              if (topicObj.id) assignedIds.add(topicObj.id);
+              task.subjectId = subjectKey;
+              task.subject = CONFIG.subjects[subjectKey]?.name || subjectKey;
+              task.topic = topicObj.title;
+              task.unitTitle = topicObj.unitTitle;
+              task.subtopicId = topicObj.id;
+              task.duration = parseInt(slot.durationMinutes, 10) || task.duration;
+              task.blockTitle = `${slot.title} (${task.duration}m)`;
+              task.autoAssigned = true;
+            }
+          } else if (!task) {
+            const topicObj = this.getNextUncompletedTopic(subjectKey, assignedIds);
+            if (topicObj?.id) assignedIds.add(topicObj.id);
+            tasks.push({
+              id: `task_${Date.now()}_${slotKey}`,
+              blockId: slotKey,
+              blockTitle: `${slot.title} (${slot.durationMinutes}m)`,
+              duration: parseInt(slot.durationMinutes, 10) || 45,
+              startTime: slot.startTime || '',
+              endTime: slot.endTime || '',
+              subject: CONFIG.subjects[subjectKey]?.name || 'Commerce',
+              subjectId: subjectKey,
+              topic: topicObj ? topicObj.title : 'Add a topic from the queue',
+              unitTitle: topicObj ? topicObj.unitTitle : 'Select from syllabus',
+              subtopicId: topicObj?.id || null,
+              status: 'pending',
+              scheduledDate: dateStr,
+              completedAt: null,
+              autoAssigned: Boolean(topicObj?.id)
+            });
+          }
+        });
+        state.planner[dateStr] = tasks;
+        return state;
+      });
+      return;
+    }
+
+    // Fresh generation for date
+    const freshTasks = this.generateTasksForDate(dateStr);
+    this.updateState(state => {
+      if (!state.planner) state.planner = {};
+      state.planner[dateStr] = freshTasks;
+      return state;
     });
   }
 

@@ -54,7 +54,7 @@ class MocksController {
 
     if (scoreInput) scoreInput.value = '';
     if (timeInput) timeInput.value = '45';
-    if (accuracyInput) accuracyInput.value = '90';
+    if (accuracyInput) accuracyInput.value = '';
     if (mistakesInput) mistakesInput.value = '';
     if (notesInput) notesInput.value = '';
 
@@ -69,12 +69,30 @@ class MocksController {
   handleSubjectChangeInModal(subjectKey) {
     const mockNumberInput = document.getElementById('mock-number-input');
     const maxScoreInput = document.getElementById('mock-max-score-input');
+    const scoreInput = document.getElementById('mock-score-input');
 
     if (mockNumberInput) {
       mockNumberInput.value = this.getNextMockNumber(subjectKey);
     }
     if (maxScoreInput) {
       maxScoreInput.value = CONFIG.subjects[subjectKey]?.cuetMaxScore || 200;
+    }
+    if (scoreInput && scoreInput.value) {
+      this.handleScoreInput(scoreInput.value);
+    }
+  }
+
+  handleScoreInput(scoreVal) {
+    const score = parseFloat(scoreVal);
+    const maxScore = parseFloat(document.getElementById('mock-max-score-input')?.value) || 200;
+    const accuracyInput = document.getElementById('mock-accuracy-input');
+    if (!accuracyInput) return;
+
+    if (!isNaN(score) && maxScore > 0) {
+      const computedPct = Math.min(100, Math.max(0, Math.round((score / maxScore) * 100)));
+      accuracyInput.value = computedPct;
+    } else {
+      accuracyInput.value = '';
     }
   }
 
@@ -108,7 +126,9 @@ class MocksController {
       score: score,
       maxScore: maxScore,
       timeTaken: parseInt(timeInput.value, 10) || 45,
-      accuracy: parseInt(accuracyInput.value, 10) || Math.round((score / maxScore) * 100),
+      accuracy: (accuracyInput.value !== '' && !isNaN(parseInt(accuracyInput.value, 10))) 
+        ? Math.min(100, Math.max(0, parseInt(accuracyInput.value, 10))) 
+        : Math.round((score / maxScore) * 100),
       mistakes: (mistakesInput.value || '').trim(),
       notes: (notesInput.value || '').trim(),
       loggedAt: new Date().toISOString()
