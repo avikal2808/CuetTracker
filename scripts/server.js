@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
+const ROOT_DIR = path.join(__dirname, '..');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -22,10 +23,10 @@ const server = http.createServer((req, res) => {
     cleanUrl = '/index.html';
   }
 
-  const filePath = path.join(__dirname, cleanUrl);
+  const filePath = path.join(ROOT_DIR, cleanUrl);
 
   // Security: prevent path traversal outside project root
-  if (!filePath.startsWith(__dirname)) {
+  if (!filePath.startsWith(ROOT_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
     return;
@@ -34,8 +35,7 @@ const server = http.createServer((req, res) => {
   fs.readFile(filePath, (err, content) => {
     if (err) {
       if (err.code === 'ENOENT') {
-        // Fallback to index.html for SPA routing if needed
-        fs.readFile(path.join(__dirname, 'index.html'), (indexErr, indexContent) => {
+        fs.readFile(path.join(ROOT_DIR, 'index.html'), (indexErr, indexContent) => {
           if (indexErr) {
             res.writeHead(404, { 'Content-Type': 'text/plain' });
             res.end('File Not Found');
