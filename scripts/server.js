@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-const ROOT_DIR = path.join(__dirname, '..', 'public');
+const ROOT_DIR = path.join(__dirname, '..');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
 
   const filePath = path.join(ROOT_DIR, cleanUrl);
 
-  // Security: prevent path traversal outside public folder
+  // Security: prevent path traversal outside project root
   if (!filePath.startsWith(ROOT_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
