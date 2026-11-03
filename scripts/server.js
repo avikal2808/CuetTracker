@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-const ROOT_DIR = path.join(__dirname, '..');
+const ROOT_DIR = path.join(__dirname, '..', 'public');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -25,7 +25,7 @@ const server = http.createServer((req, res) => {
 
   const filePath = path.join(ROOT_DIR, cleanUrl);
 
-  // Security: prevent path traversal outside project root
+  // Security: prevent path traversal outside public folder
   if (!filePath.startsWith(ROOT_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('Forbidden');
@@ -35,7 +35,7 @@ const server = http.createServer((req, res) => {
   fs.readFile(filePath, (err, content) => {
     if (err) {
       if (err.code === 'ENOENT') {
-        // Only fallback to index.html for non-asset requests (no file extension)
+        // Fallback to index.html for SPA routing (only for non-asset requests)
         const isAsset = cleanUrl.includes('.');
         if (!isAsset) {
           fs.readFile(path.join(ROOT_DIR, 'index.html'), (indexErr, indexContent) => {
