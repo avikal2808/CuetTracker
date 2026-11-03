@@ -1,10 +1,5 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "rewrites": [
-    {
-      "source": "/((?!css/|js/|scripts/|.*\\..*).*)",
-      "destination": "/index.html"
-    }
-  ]
+  "outputDirectory": "dist"
 }
