@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CuetTracker</string>
+    <string name="title_activity_main">CuetTracker</string>
+    <string name="package_name">com.avikal2808.cuettracker</string>
+    <string name="custom_url_scheme">com.avikal2808.cuettracker</string>
+</resources>
