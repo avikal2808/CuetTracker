@@ -5,8 +5,10 @@
  */
 class DashboardController {
   constructor() {
-    this.boardTarget = 93; // 93%+ board target
-    this.simulatedPace = 2.2; // daily topics
+    // Restore the user's saved selections so the Progress view survives a refresh.
+    const state = Storage.getState();
+    this.boardTarget = parseInt(state.targetPercentage, 10) || 93; // 93%+ board target
+    this.simulatedPace = parseFloat(state.studyPaceDailyTopics) || 2.2; // topics per day
     this.init();
   }
 
@@ -18,12 +20,40 @@ class DashboardController {
     this.boardTarget = parseInt(targetVal, 10) || 93;
     const state = Storage.getState();
     state.targetPercentage = this.boardTarget;
-    Storage.updateState(state);
+    Storage.updateState(state); // persists locally + cloud, re-renders via 'change'
   }
 
+  /** Clamp the pace to the slider range and round to one decimal. */
+  clampPace(paceVal) {
+    const p = parseFloat(paceVal);
+    if (isNaN(p)) return 2.2;
+    return Math.min(5, Math.max(1, Math.round(p * 10) / 10));
+  }
+
+  /**
+   * Live feedback while dragging the pace slider. Only the label/ETA text nodes
+   * are touched so the range input is NOT replaced mid-drag (a full re-render
+   * would destroy the element being dragged).
+   */
+  previewPace(paceVal) {
+    const pace = this.clampPace(paceVal);
+    const stats = this.calculateStatistics();
+    const days = Math.max(0, Math.ceil(stats.remainingSubtopics / pace));
+    const liveVal = document.getElementById('pace-live-value');
+    const etaDesc = document.getElementById('pace-eta-desc');
+    if (liveVal) liveVal.textContent = `${pace} topics/day`;
+    if (etaDesc) {
+      etaDesc.innerHTML = `${stats.completedSubtopics} of ${stats.totalSubtopics} topics done &bull; ${stats.remainingSubtopics} remaining &divide; <strong>${pace}</strong> topics/day &asymp; <strong>${days}</strong> days`;
+    }
+  }
+
+  /** Persist the chosen pace so the ETA calculation survives a refresh. */
   setPace(paceVal) {
-    this.simulatedPace = parseFloat(paceVal) || 2.0;
-    this.render();
+    const pace = this.clampPace(paceVal);
+    this.simulatedPace = pace;
+    const state = Storage.getState();
+    state.studyPaceDailyTopics = pace;
+    Storage.updateState(state); // persists locally + cloud, re-renders via 'change'
   }
 
   calculateStatistics() {
@@ -169,16 +199,16 @@ class DashboardController {
             <div class="eta-box">
               <span class="eta-label"><i data-lucide="calendar"></i> Projected Syllabus Completion</span>
               <div class="eta-date-highlight">${etaFormatted}</div>
-              <p class="eta-description">At current pace of <strong>${this.simulatedPace}</strong> topics/day (${stats.daysNeeded} days remaining to finish ${stats.remainingSubtopics} topics).</p>
+              <p class="eta-description" id="pace-eta-desc">${stats.completedSubtopics} of ${stats.totalSubtopics} topics done &bull; ${stats.remainingSubtopics} remaining &divide; <strong>${this.simulatedPace}</strong> topics/day &asymp; <strong>${stats.daysNeeded}</strong> days</p>
             </div>
 
             <!-- Dynamic Pace Simulator Slider -->
             <div class="pace-simulator-widget">
               <div class="pace-slider-header">
                 <span><i data-lucide="sliders"></i> Dynamic Pace Simulator:</span>
-                <strong>${this.simulatedPace} topics/day</strong>
+                <strong id="pace-live-value">${this.simulatedPace} topics/day</strong>
               </div>
-              <input type="range" min="1.0" max="5.0" step="0.2" value="${this.simulatedPace}" class="pace-range-slider" oninput="Dashboard.setPace(this.value)">
+              <input type="range" min="1.0" max="5.0" step="0.1" value="${this.simulatedPace}" class="pace-range-slider" oninput="Dashboard.previewPace(this.value)" onchange="Dashboard.setPace(this.value)">
               <div class="pace-slider-scale">
                 <span>1.0/day</span>
                 <span>2.2 (Default)</span>
@@ -232,7 +262,7 @@ class DashboardController {
       <!-- Subject-Wise Mastery Breakdown -->
       <div class="section-title-row">
         <h3><i data-lucide="bar-chart-2"></i> Subject Mastery & Progress</h3>
-        <span class="queue-count-badge">5 Core CUET Subjects</span>
+        <span class="queue-count-badge">${stats.totalSubtopics} topics across 5 subjects</span>
       </div>
 
       <div class="subject-breakdown-stack">
