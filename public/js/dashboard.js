@@ -101,8 +101,8 @@ class DashboardController {
 
     // Exam countdowns
     const today = new Date();
-    const boardDate = new Date('2027-02-15T00:00:00');
-    const cuetDate = new Date('2027-05-15T00:00:00');
+    const boardDate = new Date('2028-02-15T00:00:00');
+    const cuetDate = new Date('2028-04-15T00:00:00');
 
     const daysToBoard = Math.max(0, Math.ceil((boardDate - today) / (1000 * 60 * 60 * 24)));
     const daysToCuet = Math.max(0, Math.ceil((cuetDate - today) / (1000 * 60 * 60 * 24)));
