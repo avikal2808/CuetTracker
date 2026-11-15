@@ -314,12 +314,12 @@
         <button class="btn-close-modal" onclick="App.closeCloudStatusModal()"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body">
-        <p>This tracker uses an <strong>offline-first architecture</strong> with live cloud synchronization:</p>
+        <p>This tracker is <strong>local-first</strong>: your data is always saved on this device, and safely backed up to Supabase Cloud.</p>
 
         <div style="background: var(--secondary-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px;">
-          <p style="margin-bottom: 6px;"><strong>Endpoint:</strong> <code>https://lnnhfucpbmedthkozlxs.supabase.co</code></p>
-          <p style="margin-bottom: 6px;"><strong>Table:</strong> <code>student_progress</code></p>
-          <p style="margin-bottom: 6px;"><strong>Local Fallback:</strong> Active &bull; Instant local cache via LocalStorage</p>
+          <p style="margin-bottom: 6px;"><strong>Primary Storage:</strong> <code>LocalStorage (this device)</code></p>
+          <p style="margin-bottom: 6px;"><strong>Cloud Backup:</strong> <code>Supabase &bull; student_progress</code></p>
+          <p style="margin-bottom: 6px;"><strong>Merge Rule:</strong> Local always wins &bull; cloud is only restored when this device is empty</p>
           <p><strong>Auto Midnight Rollover:</strong> Active &bull; Sweeps missed blocks to Vault</p>
         </div>
 
@@ -336,7 +336,7 @@
         <div class="form-group" style="margin-top: 14px;">
           <label>Sync Controls</label>
           <div style="display: flex; gap: 8px;">
-            <button class="btn-secondary" style="flex: 1;" onclick="Storage.pushToCloud(); App.closeCloudStatusModal();">
+            <button class="btn-secondary" style="flex: 1;" onclick="Storage.pushToCloud(); App.closeCloudStatusModal(); App.showToast('Synced with Supabase Cloud!', 'success');">
               <i data-lucide="refresh-cw"></i> Sync Now
             </button>
             <button class="btn-secondary" style="flex: 1;" onclick="Storage.exportBackupJson();">

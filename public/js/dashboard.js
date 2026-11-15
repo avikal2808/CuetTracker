@@ -278,7 +278,7 @@ class DashboardController {
       <div class="data-mgmt-card card">
         <div class="data-mgmt-info">
           <h4><i data-lucide="database"></i> Data Sovereignty & Cloud Status</h4>
-          <p>Your study plan is continuously saved locally and synced with Supabase. You can also export full JSON backups.</p>
+          <p>Your study plan is saved locally on this device and safely backed up to Supabase. You can also export full JSON backups.</p>
         </div>
         <div class="data-mgmt-actions">
           <button class="btn-backup-export" onclick="Storage.exportBackupJson()">
@@ -288,7 +288,7 @@ class DashboardController {
             <i data-lucide="upload"></i> Restore from JSON
             <input type="file" accept=".json" style="display:none" onchange="App.handleBackupUpload(this)">
           </label>
-          <button class="btn-sync-trigger" onclick="Storage.pushToCloud()">
+          <button class="btn-sync-trigger" onclick="Storage.pushToCloud(); App.showToast('Backed up to Supabase Cloud!', 'success');">
             <i data-lucide="refresh-cw"></i> Force Cloud Sync
           </button>
         </div>

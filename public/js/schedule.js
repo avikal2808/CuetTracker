@@ -324,7 +324,7 @@ class ScheduleController {
           <i data-lucide="shield-check" class="text-emerald"></i>
           <div>
             <strong>Weekly timetable & rotational queues are auto-synced</strong>
-            <p>Every subject assignment and duration change persists to LocalStorage and syncs with Supabase Cloud.</p>
+            <p>Every subject assignment and duration change is saved locally and backed up to Supabase Cloud.</p>
           </div>
         </div>
         <div class="cloud-bar-right">

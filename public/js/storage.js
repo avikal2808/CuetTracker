@@ -10,6 +10,14 @@ class StudyStorage {
     this.isOnline = navigator.onLine;
     this.saveTimeout = null;
 
+    // Local-first engine: LocalStorage is authoritative. Cloud is a safe,
+    // non-destructive backup that is only adopted when local is empty or older.
+    // NOTE: these must be set BEFORE loadInitialState(), which flips
+    // isFreshInstall to true when no local data exists on this device.
+    this.cloudEnabled = true;
+    this.supabaseClient = null;
+    this.isFreshInstall = false;
+
     // Initialize state
     this.state = this.loadInitialState();
 
@@ -17,8 +25,6 @@ class StudyStorage {
     window.addEventListener('online', () => this.handleNetworkChange(true));
     window.addEventListener('offline', () => this.handleNetworkChange(false));
 
-    // Initialize Supabase Client if available
-    this.supabaseClient = null;
     this.initSupabase();
 
     // Check midnight rollover on boot
@@ -79,6 +85,7 @@ class StudyStorage {
 
     return {
       version: 1,
+      updatedAt: new Date().toISOString(),
       studentRecordId: CONFIG.supabase.studentRecordId,
       lastRolloverDate: today,
       targetPercentage: 93, // 93%+ board target
@@ -374,12 +381,15 @@ class StudyStorage {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && parsed.version) {
+          this.isFreshInstall = false;
           return this.mergeWithDefault(parsed);
         }
       }
     } catch (e) {
       console.warn('Could not parse local storage state:', e);
     }
+    // No usable local data on this device — cloud restore is allowed on boot.
+    this.isFreshInstall = true;
     const def = this.getDefaultState();
     this.saveLocally(def);
     return def;
@@ -507,6 +517,8 @@ class StudyStorage {
     try {
       const newState = typeof updaterFn === 'function' ? updaterFn(this.state) : updaterFn;
       this.state = newState || this.state;
+      // Stamp every mutation so conflict resolution can tell which copy is newer.
+      this.state.updatedAt = new Date().toISOString();
       this.saveLocally(this.state);
       this.emit('change', this.state);
       this.scheduleCloudSync();
@@ -516,11 +528,15 @@ class StudyStorage {
   }
 
   initSupabase() {
+    if (!this.cloudEnabled) {
+      this.setSyncStatus('local', 'Local Storage Active');
+      return;
+    }
     try {
       if (window.supabase && window.supabase.createClient) {
         this.supabaseClient = window.supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
         this.setSyncStatus('local', 'Ready to sync with cloud');
-        // Attempt initial background pull
+        // Background pull — local data is only ever replaced by a newer cloud copy.
         this.pullFromCloud();
       } else {
         this.setSyncStatus('local', 'Local storage active');
@@ -548,6 +564,7 @@ class StudyStorage {
   }
 
   scheduleCloudSync(delayMs = 900) {
+    if (!this.cloudEnabled) return;
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
@@ -557,7 +574,7 @@ class StudyStorage {
   }
 
   async pullFromCloud() {
-    if (!this.isOnline) return;
+    if (!this.cloudEnabled || !this.isOnline) return;
     try {
       const headers = {
         'apikey': CONFIG.supabase.anonKey,
@@ -567,28 +584,46 @@ class StudyStorage {
         headers
       });
 
-      if (res.ok) {
-        const rows = await res.json();
-        if (rows && rows.length > 0 && rows[0].data) {
-          const cloudData = rows[0].data;
-          // Merge cloud data safely if newer or existing
-          if (cloudData.version) {
-            this.state = this.mergeWithDefault(cloudData);
-            this.saveLocally(this.state);
-            this.emit('change', this.state);
-            this.setSyncStatus('synced', 'Synced with Supabase Cloud');
-            return;
-          }
-        }
+      if (!res.ok) {
+        this.setSyncStatus('local', 'Saved Locally (cloud unreachable)');
+        return;
       }
-      this.setSyncStatus('synced', 'Local & Cloud in sync');
+
+      const rows = await res.json();
+      const cloudData = rows && rows[0] && rows[0].data;
+
+      // No cloud copy yet — seed the cloud with this device's data.
+      if (!cloudData || !cloudData.version) {
+        this.setSyncStatus('syncing', 'Seeding cloud backup...');
+        this.pushToCloud();
+        return;
+      }
+
+      const cloudUpdated = Date.parse(cloudData.updatedAt || 0) || 0;
+      const localUpdated = Date.parse(this.state.updatedAt || 0) || 0;
+
+      // SAFE MERGE — never clobber local work.
+      // Adopt cloud only if this device has no local data (fresh install)
+      // or the cloud copy was edited more recently on another device.
+      if (this.isFreshInstall || cloudUpdated > localUpdated) {
+        this.state = this.mergeWithDefault(cloudData);
+        this.saveLocally(this.state);
+        this.emit('change', this.state);
+        this.setSyncStatus('synced', 'Restored from Supabase Cloud');
+        return;
+      }
+
+      // Local is same-or-newer: keep it and push it up.
+      this.setSyncStatus('syncing', 'Uploading local changes...');
+      this.pushToCloud();
     } catch (e) {
       console.warn('Pull cloud status:', e.message);
-      this.setSyncStatus('local', 'Saved Locally (Auto-sync ready)');
+      this.setSyncStatus('local', 'Saved Locally (cloud unreachable)');
     }
   }
 
   async pushToCloud() {
+    if (!this.cloudEnabled) return;
     if (!this.isOnline) {
       this.setSyncStatus('offline', 'Offline (Saved Locally)');
       return;
@@ -600,7 +635,7 @@ class StudyStorage {
       const payload = {
         id: CONFIG.supabase.studentRecordId,
         data: this.state,
-        updated_at: new Date().toISOString()
+        updated_at: this.state.updatedAt || new Date().toISOString()
       };
 
       const res = await fetch(`${CONFIG.supabase.url}/rest/v1/${CONFIG.supabase.tableName}`, {
