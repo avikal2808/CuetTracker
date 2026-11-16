@@ -153,6 +153,9 @@ class QueueController {
       return;
     }
 
+    const targetSubject = subjectId || this.selectedSubject;
+    const existingTitles = this.getExistingTopicTitles(targetSubject);
+
     // Split lines, clean up numbering, bullets, roman numerals
     const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     const cleaned = [];
@@ -169,18 +172,111 @@ class QueueController {
           duration = 30;
         }
 
+        const status = this.matchExistingTitle(text, existingTitles) ? 'matched' : 'new';
         cleaned.push({
           id: `custom_${Date.now()}_${idx}`,
           title: text,
+          unit: 'Imported Topics',
           duration: duration,
-          subjectId: subjectId || this.selectedSubject,
-          selected: true
+          subjectId: targetSubject,
+          selected: status === 'new',
+          status: status
         });
       }
     });
 
     this.parsedTopicsPreview = cleaned;
     this.renderParserPreview();
+  }
+
+  /** Every topic title already in a subject's syllabus, for duplicate detection. */
+  getExistingTopicTitles(subjectId) {
+    const syllabusObj = Storage.getSubjectSyllabus(subjectId);
+    const titles = [];
+    (syllabusObj?.units || []).forEach(unit => {
+      (unit.subtopics || []).forEach(st => titles.push(st.title));
+    });
+    return titles;
+  }
+
+  /** Normalise a title so "Ch. 4 Cash Flow" and "4. cash-flow" compare equal. */
+  normalizeTopicTitle(title) {
+    return String(title)
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/\b(?:ch|chapter|unit|part)\.?\s*\d+/g, ' ')
+      .replace(/\b\d+(?:\.\d+)*\b/g, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /** Sørensen–Dice similarity of two strings' bigrams (0..1). */
+  diceCoefficient(a, b) {
+    if (!a || !b) return 0;
+    const bigrams = str => {
+      const out = new Map();
+      for (let i = 0; i < str.length - 1; i++) {
+        const gram = str.slice(i, i + 2);
+        out.set(gram, (out.get(gram) || 0) + 1);
+      }
+      return out;
+    };
+    const aGrams = bigrams(a);
+    const bGrams = bigrams(b);
+    if (aGrams.size === 0 || bGrams.size === 0) return 0;
+    let overlap = 0;
+    aGrams.forEach((count, gram) => {
+      if (bGrams.has(gram)) overlap += Math.min(count, bGrams.get(gram));
+    });
+    return (2 * overlap) / (a.length - 1 + b.length - 1);
+  }
+
+  /** True when a title already exists in the subject (exact or fuzzy match). */
+  matchExistingTitle(title, existingTitles) {
+    const norm = this.normalizeTopicTitle(title);
+    if (!norm) return false;
+    return existingTitles.some(existing => {
+      const otherNorm = this.normalizeTopicTitle(existing);
+      if (!otherNorm) return false;
+      if (norm === otherNorm) return true;
+      if (norm.length < 4 || otherNorm.length < 4) return false;
+      return this.diceCoefficient(norm, otherNorm) >= 0.87;
+    });
+  }
+
+  /** Turn the AI's extracted topics into review rows, flagging new vs matched. */
+  applyExtractedTopics(topics, subjectId) {
+    const targetSubject = subjectId || this.selectedSubject;
+    const existingTitles = this.getExistingTopicTitles(targetSubject);
+
+    this.parsedTopicsPreview = (topics || [])
+      .filter(t => t && t.title && String(t.title).trim().length > 1)
+      .map((t, idx) => {
+        const title = String(t.title).trim();
+        const unit = (t.unit && String(t.unit).trim()) || 'Imported Topics';
+        const status = this.matchExistingTitle(title, existingTitles) ? 'matched' : 'new';
+        return {
+          id: `ai_${Date.now()}_${idx}`,
+          title: title,
+          unit: unit,
+          duration: Number(t.minutes) > 0 ? Number(t.minutes) : 45,
+          subjectId: targetSubject,
+          selected: status === 'new',
+          status: status
+        };
+      });
+
+    this.renderParserPreview();
+  }
+
+  readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error('Could not read the selected file.'));
+      reader.readAsDataURL(file);
+    });
   }
 
   async handlePhotoUpload(fileInput) {
@@ -195,44 +291,37 @@ class QueueController {
     }
 
     if (statusMsg) {
-      statusMsg.innerHTML = `<span class="spinner-inline"></span> Initializing OCR engine to parse image...`;
+      statusMsg.innerHTML = `<span class="spinner-inline"></span> Sending the photo to the AI syllabus reader...`;
     }
 
     const subjectId = document.getElementById('parser-subject-select')?.value || this.selectedSubject;
 
     try {
-      if (window.Tesseract && window.Tesseract.recognize) {
-        const result = await window.Tesseract.recognize(file, 'eng', {
-          logger: m => {
-            if (m.status === 'recognizing text' && statusMsg) {
-              const pct = Math.round((m.progress || 0) * 100);
-              statusMsg.innerHTML = `<span class="spinner-inline"></span> Reading syllabus text (${pct}%)...`;
-            }
-          }
-        });
+      const dataUrl = await this.readFileAsDataUrl(file);
+      const response = await fetch('/api/extract-syllabus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl, mimeType: file.type || 'image/jpeg' })
+      });
 
-        const rawText = result?.data?.text || '';
-        this.handleTextParserInput(rawText, subjectId);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || `The AI reader failed (${response.status}).`);
+      }
 
+      this.applyExtractedTopics(payload.topics || [], subjectId);
+
+      if (statusMsg) {
         if (this.parsedTopicsPreview.length > 0) {
-          if (statusMsg) {
-            statusMsg.innerHTML = `<span class="text-emerald"><i data-lucide="check-circle-2"></i> Extracted ${this.parsedTopicsPreview.length} topic line(s) from image!</span>`;
-          }
+          const newCount = this.parsedTopicsPreview.filter(t => t.status === 'new').length;
+          statusMsg.innerHTML = `<span class="text-emerald"><i data-lucide="check-circle-2"></i> Found ${this.parsedTopicsPreview.length} topic(s) — ${newCount} new. Review below.</span>`;
         } else {
-          if (statusMsg) {
-            statusMsg.innerHTML = `<span class="text-amber"><i data-lucide="alert-circle"></i> No distinct syllabus topics recognized in photo. Please ensure clear lighting or paste text directly.</span>`;
-          }
-        }
-      } else {
-        // Fallback if Tesseract CDN isn't loaded
-        if (statusMsg) {
-          statusMsg.innerHTML = `<span class="text-amber"><i data-lucide="alert-circle"></i> OCR engine is offline. Please paste the topics into the text tab.</span>`;
+          statusMsg.innerHTML = `<span class="text-amber"><i data-lucide="alert-circle"></i> No syllabus topics were detected in that photo. Try a clearer shot or paste the text instead.</span>`;
         }
       }
     } catch (err) {
-      console.warn('OCR processing error:', err);
       if (statusMsg) {
-        statusMsg.innerHTML = `<span class="text-error"><i data-lucide="alert-triangle"></i> Could not read image: ${err.message || 'unknown error'}. Please paste text directly.</span>`;
+        statusMsg.innerHTML = `<span class="text-error"><i data-lucide="alert-triangle"></i> ${err.message || 'Could not read that image.'}</span>`;
       }
     }
 
@@ -270,35 +359,42 @@ class QueueController {
     const syllabusSubject = state.syllabus[subjectId];
     if (!Array.isArray(syllabusSubject.units)) syllabusSubject.units = [];
 
-    let importedUnit = syllabusSubject.units.find(u => u.title === 'Imported Topics');
-    if (!importedUnit) {
-      importedUnit = { title: 'Imported Topics', subtopics: [] };
-      syllabusSubject.units.push(importedUnit);
-    }
-    const existingTitles = new Set(importedUnit.subtopics.map(st => st.title.trim().toLowerCase()));
+    // Skip anything the subject syllabus already has (exact or fuzzy title match).
+    const existingTitles = this.getExistingTopicTitles(subjectId);
 
+    let addedCount = 0;
     selected.forEach(t => {
+      if (this.matchExistingTitle(t.title, existingTitles)) return;
+
+      const unitTitle = t.unit || 'Imported Topics';
       state.queues[subjectId].unshift({
         id: t.id,
         subjectId: subjectId,
         subjectName: Storage.getSubjectName(subjectId) || subjectId,
-        unitTitle: 'Imported Syllabus Queue',
+        unitTitle: unitTitle,
         title: t.title,
         duration: t.duration,
         priority: 'high'
       });
 
-      const key = t.title.trim().toLowerCase();
-      if (!existingTitles.has(key)) {
-        existingTitles.add(key);
-        importedUnit.subtopics.push({ id: t.id, title: t.title, minutes: t.duration });
+      let unit = syllabusSubject.units.find(u => u.title === unitTitle);
+      if (!unit) {
+        unit = { title: unitTitle, subtopics: [] };
+        syllabusSubject.units.push(unit);
       }
+      unit.subtopics.push({ id: t.id, title: t.title, minutes: t.duration });
+      existingTitles.push(t.title);
+      addedCount++;
     });
 
     Storage.updateState(state);
     this.closeParserModal();
     if (window.App) {
-      window.App.showToast(`Imported ${selected.length} topics into ${Storage.getSubjectName(subjectId)} queue!`, 'success');
+      if (addedCount === 0) {
+        window.App.showToast('Those topics are already in the syllabus — progress preserved.', 'info');
+      } else {
+        window.App.showToast(`Imported ${addedCount} new topic(s) into ${Storage.getSubjectName(subjectId)}!`, 'success');
+      }
     }
   }
 
@@ -313,7 +409,16 @@ class QueueController {
       return;
     }
 
-    let html = '';
+    const newCount = this.parsedTopicsPreview.filter(t => t.status === 'new').length;
+    const matchedCount = this.parsedTopicsPreview.length - newCount;
+
+    let html = `
+      <p class="parser-summary">
+        <span class="parsed-count-new">${newCount} new</span>
+        <span class="parsed-count-matched">${matchedCount} already in syllabus</span>
+      </p>
+    `;
+
     this.parsedTopicsPreview.forEach((item, index) => {
       html += `
         <div class="parsed-item-row ${item.selected ? 'is-selected' : ''}">
@@ -323,14 +428,20 @@ class QueueController {
           </label>
           <div class="parsed-item-details">
             <span class="parsed-item-title">${item.title}</span>
-            <span class="parsed-item-duration">${item.duration}m target</span>
+            <span class="parsed-item-meta">
+              <span class="parsed-item-unit">${item.unit || 'Imported Topics'}</span>
+              <span class="parsed-item-duration">${item.duration}m target</span>
+              <span class="parsed-item-status ${item.status === 'matched' ? 'is-matched' : 'is-new'}">
+                ${item.status === 'matched' ? 'Already in syllabus' : 'New'}
+              </span>
+            </span>
           </div>
         </div>
       `;
     });
 
     listEl.innerHTML = html;
-    if (commitBtn) commitBtn.disabled = false;
+    if (commitBtn) commitBtn.disabled = newCount === 0;
   }
 
   render() {

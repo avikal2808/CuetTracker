@@ -2578,6 +2578,55 @@ p {
   color: var(--secondary-text);
 }
 
+.parser-summary {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  padding: 0 8px;
+}
+
+.parsed-count-new {
+  color: var(--primary-accent);
+}
+
+.parsed-count-matched {
+  color: var(--secondary-text);
+}
+
+.parsed-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.parsed-item-unit {
+  font-size: 10px;
+  color: var(--secondary-text);
+  font-style: italic;
+}
+
+.parsed-item-status {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.parsed-item-status.is-new {
+  color: #35634A;
+  background: #DCEBDD;
+}
+
+.parsed-item-status.is-matched {
+  color: var(--secondary-text);
+  background: #ECECEC;
+}
+
 /* Modal Queue Suggestions */
 .queue-suggestions-box {
   max-height: 140px;
