@@ -56,28 +56,6 @@ class StudyStorage {
 
   getDefaultState() {
     const today = this.getTodayString();
-    
-    // Default initial queue from default syllabus
-    const defaultQueues = {};
-    Object.keys(DEFAULT_SYLLABUS).forEach(subKey => {
-      const sub = DEFAULT_SYLLABUS[subKey];
-      defaultQueues[subKey] = [];
-      let count = 0;
-      for (const unit of sub.units) {
-        for (const topic of unit.subtopics) {
-          defaultQueues[subKey].push({
-            id: topic.id,
-            subjectId: subKey,
-            subjectName: sub.title,
-            unitTitle: unit.title,
-            title: topic.title,
-            duration: topic.minutes,
-            priority: count < 2 ? 'high' : 'normal'
-          });
-          count++;
-        }
-      }
-    });
 
     // Default Today's planner slots - empty for testing
     const initialTasks = [];
@@ -87,6 +65,8 @@ class StudyStorage {
       updatedAt: new Date().toISOString(),
       studentRecordId: CONFIG.supabase.studentRecordId,
       lastRolloverDate: today,
+      // Marks the one-time purge of the old hardcoded syllabus (see stripLegacySeedData).
+      shippedSyllabusPurged: true,
       // Student-owned subject registry — single source of truth for subjects.
       subjects: this.getDefaultSubjects(),
       // Student-owned syllabus — seeded from the shipped syllabus, then edited
@@ -113,7 +93,7 @@ class StudyStorage {
       planner: {
         [today]: initialTasks
       },
-      queues: defaultQueues,
+      queues: this.getDefaultQueues(),
       syllabusProgress: {}, // { [subtopicId]: { completed: bool, completedAt: iso, preMarked: bool } }
       mocks: [],
       backlog: [],
@@ -134,6 +114,35 @@ class StudyStorage {
   /** Seed syllabus for a fresh install, deep-cloned so later edits never mutate the source. */
   getDefaultSyllabus() {
     return JSON.parse(JSON.stringify(DEFAULT_SYLLABUS));
+  }
+
+  /**
+   * Rotational queues seeded from the shipped syllabus. Nothing ships today, so
+   * this yields an empty map — it stays the single place that builds queues so a
+   * re-seed only ever needs editing here.
+   */
+  getDefaultQueues() {
+    const queues = {};
+    Object.keys(DEFAULT_SYLLABUS).forEach(subKey => {
+      const sub = DEFAULT_SYLLABUS[subKey];
+      queues[subKey] = [];
+      let count = 0;
+      for (const unit of sub.units) {
+        for (const topic of unit.subtopics) {
+          queues[subKey].push({
+            id: topic.id,
+            subjectId: subKey,
+            subjectName: sub.title,
+            unitTitle: unit.title,
+            title: topic.title,
+            duration: topic.minutes,
+            priority: count < 2 ? 'high' : 'normal'
+          });
+          count++;
+        }
+      }
+    });
+    return queues;
   }
 
   /* ------------------------------------------------------------------
@@ -327,6 +336,22 @@ class StudyStorage {
       backlog: Array.isArray(existing.backlog) ? existing.backlog : def.backlog,
       userProfile: { ...def.userProfile, ...(existing.userProfile || {}) }
     };
+
+    // One-time purge: the hardcoded Commerce syllabus shipped in early builds is
+    // gone. Stored states written before that change still carry the seeded
+    // topics, their rotational queues and the progress recorded against them —
+    // drop all three so the syllabus starts blank for photo imports. Guarded by
+    // a flag on the STORED state (not the defaults) so an imported syllabus is
+    // never wiped.
+    if (!existing.shippedSyllabusPurged) {
+      merged.syllabus = def.syllabus;
+      merged.queues = def.queues;
+      merged.syllabusProgress = {};
+      merged.shippedSyllabusPurged = true;
+      // Outrank the stale cloud copy so the next sync uploads the clean slate.
+      merged.updatedAt = new Date().toISOString();
+    }
+
     return this.stripLegacySeedData(merged);
   }
 

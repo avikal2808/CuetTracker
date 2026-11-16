@@ -524,11 +524,14 @@ class QueueController {
     `;
 
     if (upcomingQueue.length === 0) {
+      const syllabusEmpty = totalSubtopics === 0;
       html += `
         <div class="empty-state-card card">
-          <i data-lucide="sparkles" class="empty-icon text-emerald"></i>
-          <h4>All queued topics completed!</h4>
-          <p>Great job! Mark more subtopics below or import custom chapters.</p>
+          <i data-lucide="${syllabusEmpty ? 'scan-line' : 'sparkles'}" class="empty-icon text-emerald"></i>
+          <h4>${syllabusEmpty ? 'No topics yet' : 'All queued topics completed!'}</h4>
+          <p>${syllabusEmpty
+            ? 'Import your chapters from a photo of your syllabus to build the rotational queue.'
+            : 'Great job! Mark more subtopics below or import custom chapters.'}</p>
         </div>
       `;
     } else {
@@ -639,6 +642,19 @@ class QueueController {
           </div>
         `;
       });
+    }
+
+    if (totalSubtopics === 0) {
+      html += `
+        <div class="empty-state-card card">
+          <i data-lucide="scan-line" class="empty-icon text-emerald"></i>
+          <h4>Your syllabus is empty</h4>
+          <p>Scan a photo of your book's contents page with "Import / Photo Parser" and the chapters, units and subtopics land right here.</p>
+          <button class="btn-import-trigger" onclick="Queue.openParserModal()">
+            <i data-lucide="scan-line"></i> Import from Photo
+          </button>
+        </div>
+      `;
     }
 
     html += `</div>`; // Close syllabus-units-stack
