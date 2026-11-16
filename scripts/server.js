@@ -92,9 +92,19 @@ const server = http.createServer((req, res) => {
 
   // Serverless-style API routes (deployed on Vercel, emulated here for local dev).
   if (API_ROUTES[cleanUrl]) {
-    if (req.method !== 'POST') {
+    if (req.method !== 'POST' && req.method !== 'GET') {
       res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'Method not allowed. Use POST.' }));
+      return;
+    }
+    if (req.method === 'GET') {
+      res.status = code => { res.statusCode = code; return res; };
+      res.json = payload => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.end(JSON.stringify(payload));
+      };
+      // eslint-disable-next-line global-require
+      require(path.join(__dirname, API_ROUTES[cleanUrl]))(req, res);
       return;
     }
     console.log(`[api] ${req.method} ${cleanUrl}${process.env.GEMINI_API_KEY ? '' : ' (no GEMINI_API_KEY found)'}`);

@@ -345,6 +345,9 @@ class QueueController {
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('The AI reader is not deployed at /api/extract-syllabus on this site.');
+        }
         throw new Error(payload.error || `The AI reader failed (${response.status}).`);
       }
 

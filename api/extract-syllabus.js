@@ -48,8 +48,21 @@ const RESPONSE_SCHEMA = {
 module.exports.config = { api: { bodyParser: { sizeLimit: '8mb' } } };
 
 module.exports = async function handler(req, res) {
+  // Opening this URL in a browser is the quickest way to confirm the function
+  // actually reached production. Returns 200 when deployed, so a Vercel 404
+  // page here means the deployment is not picking up the /api folder.
+  if (req.method === 'GET') {
+    res.status(200).json({
+      ok: true,
+      route: '/api/extract-syllabus',
+      model: process.env.GEMINI_MODEL || 'gemini-flash-lite-latest',
+      geminiKeyConfigured: Boolean(process.env.GEMINI_API_KEY)
+    });
+    return;
+  }
+
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed. Use POST.' });
+    res.status(405).json({ error: 'Method not allowed. Use GET for a health check or POST with an image.' });
     return;
   }
 
