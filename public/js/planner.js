@@ -314,6 +314,62 @@ class PlannerController {
       </div>
     `;
 
+    // Today's Alerts briefing — the "what to do today" summary
+    if (isToday && window.Notifier) {
+      const briefing = window.Notifier.getBriefing(this.currentDate);
+      const nSettings = Storage.getNotificationSettings();
+      const perm = window.Notifier.getPermissionState();
+      const alertsOn = nSettings.enabled !== false && (perm === 'granted' || perm === 'native');
+      const nextBlock = briefing.next;
+      const nextSubject = nextBlock ? Storage.getSubject(nextBlock.subjectId) : null;
+
+      html += `
+        <div class="today-alerts-card card">
+          <div class="alerts-header">
+            <div class="title-with-icon">
+              <i data-lucide="bell-ring" class="text-primary"></i>
+              <h3>Alerts for Today</h3>
+            </div>
+            <span class="alerts-status-pill ${alertsOn ? 'on' : 'off'}">
+              <i data-lucide="${alertsOn ? 'bell' : 'bell-off'}"></i> ${alertsOn ? 'On' : 'Off'}
+            </span>
+          </div>
+
+          ${briefing.blocks.length === 0 ? `
+            <p class="alerts-empty">No blocks planned for today yet. Add a block below to start your alerts.</p>
+          ` : `
+            ${nextBlock ? `
+              <div class="alert-next-row">
+                <span class="alert-next-label">${nextBlock.startTime ? `Next at ${this.formatClock(nextBlock.startTime)}` : 'Next up'}</span>
+                <span class="alert-next-title">
+                  <span class="subj-tag-mini sub-${nextBlock.subjectId}">${nextSubject?.code || Storage.getSubjectName(nextBlock.subjectId)}</span>
+                  ${this.escapeHtml(nextBlock.topic || 'Untitled block')}
+                </span>
+              </div>
+            ` : `
+              <div class="alert-next-row alert-all-done">
+                <i data-lucide="check-circle-2"></i> All ${briefing.blocks.length} block${briefing.blocks.length > 1 ? 's' : ''} done today. Great work!
+              </div>
+            `}
+            <div class="alert-chips-row">
+              <span class="alert-chip"><i data-lucide="list-checks"></i> ${briefing.pending.length} pending</span>
+              <span class="alert-chip"><i data-lucide="hourglass"></i> ${briefing.pendingMinutes}m left</span>
+              ${briefing.overdue.length > 0 ? `<span class="alert-chip chip-overdue"><i data-lucide="alarm-clock"></i> ${briefing.overdue.length} past start time</span>` : ''}
+            </div>
+          `}
+
+          <div class="alerts-actions">
+            ${alertsOn ? `
+              <button class="btn-secondary" onclick="Planner.testAlerts()"><i data-lucide="send"></i> Send Test Alert</button>
+              <button class="btn-alert-off" onclick="Planner.disableAlerts()"><i data-lucide="bell-off"></i> Turn Off</button>
+            ` : `
+              <button class="btn-primary" onclick="Planner.enableAlerts()"><i data-lucide="bell"></i> Turn On Alerts</button>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
     // Rollover Banner if pending items exist
     if (backlogCount > 0 && isToday) {
       html += `
@@ -502,6 +558,53 @@ class PlannerController {
     }
     if (window.App) {
       window.App.showToast('Block removed from the schedule.', 'info');
+    }
+  }
+
+  escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  async enableAlerts() {
+    const result = await window.Notifier.enable();
+    if (window.App) {
+      const messages = {
+        granted: ['Alerts are on — you will be reminded about today\'s blocks.', 'success'],
+        unsupported: ['This device has no system notifications. In-app alerts still work.', 'info'],
+        denied: ['Notifications were blocked. Allow them in your device settings.', 'info'],
+        error: ['Could not enable notifications on this device.', 'error']
+      };
+      const [message, type] = messages[result] || ['Alerts are on.', 'success'];
+      window.App.showToast(message, type);
+    }
+    this.render();
+  }
+
+  async disableAlerts() {
+    await window.Notifier.disable();
+    if (window.App) {
+      window.App.showToast('System alerts turned off. In-app alerts still work.', 'info');
+    }
+    this.render();
+  }
+
+  async testAlerts() {
+    const result = await window.Notifier.sendTest();
+    if (window.App) {
+      const messages = {
+        sent: ['Test alert sent!', 'success'],
+        scheduled: ['Test alert scheduled — it arrives in a few seconds.', 'success'],
+        denied: ['Notifications are blocked for this app.', 'error'],
+        unsupported: ['System notifications are not available here.', 'info'],
+        error: ['Could not send the test alert.', 'error']
+      };
+      const [message, type] = messages[result] || ['Could not send the test alert.', 'error'];
+      window.App.showToast(message, type);
     }
   }
 

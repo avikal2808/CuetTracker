@@ -102,6 +102,13 @@ class StudyStorage {
         autoMidnightRollover: true,
         reminderAlerts: true
       },
+      // Today alerts: an in-app briefing plus Android local notifications.
+      notificationSettings: {
+        enabled: true,
+        dailyDigest: true,
+        digestTime: '07:00',
+        blockReminders: true
+      },
       // Free-form study blocks, one list per date: planner['2026-11-16'] = [block, ...]
       planner: {
         [today]: initialTasks
@@ -312,6 +319,7 @@ class StudyStorage {
         ? existing.syllabus
         : def.syllabus,
       routineSettings: { ...def.routineSettings, ...(existing.routineSettings || {}) },
+      notificationSettings: { ...def.notificationSettings, ...(existing.notificationSettings || {}) },
       planner: { ...def.planner, ...(existing.planner || {}) },
       queues: { ...def.queues, ...(existing.queues || {}) },
       syllabusProgress: { ...(existing.syllabusProgress || {}) },
@@ -385,6 +393,33 @@ class StudyStorage {
       };
       return state;
     });
+  }
+
+  getNotificationSettings() {
+    if (this.state && this.state.notificationSettings) {
+      return this.state.notificationSettings;
+    }
+    return {
+      enabled: true,
+      dailyDigest: true,
+      digestTime: '07:00',
+      blockReminders: true
+    };
+  }
+
+  updateNotificationSettings(newSettings) {
+    this.updateState(state => {
+      state.notificationSettings = {
+        ...(state.notificationSettings || {}),
+        ...newSettings
+      };
+      return state;
+    });
+  }
+
+  /** Pending blocks for a date — the raw material for every "today" alert. */
+  getPendingBlocks(dateStr) {
+    return this.getDaySchedule(dateStr).filter(block => block.status === 'pending');
   }
 
   saveLocally(stateToSave) {

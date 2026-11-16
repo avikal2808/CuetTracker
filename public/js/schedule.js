@@ -227,6 +227,16 @@ class ScheduleController {
     const subjectsList = Storage.getSubjects();
     const defaultSubjectId = Storage.getDefaultSubjectId();
 
+    const notify = Storage.getNotificationSettings();
+    const notifyPerm = window.Notifier ? window.Notifier.getPermissionState() : 'unsupported';
+    const notifyHint = notify.enabled === false
+      ? 'System alerts are currently turned off. In-app alerts still work.'
+      : (notifyPerm === 'granted' || notifyPerm === 'native')
+        ? 'Permission granted — alerts will reach this device.'
+        : notifyPerm === 'denied'
+          ? 'Blocked in device settings. Re-allow notifications to receive alerts.'
+          : 'Use "Send Test Alert" to allow notifications on this device.';
+
     let html = `
       <!-- 1. Hero Header -->
       <div class="schedule-hero-card card">
@@ -444,6 +454,57 @@ class ScheduleController {
             <input type="checkbox" class="routine-checkbox" ${routine.reminderAlerts !== false ? 'checked' : ''} onchange="Schedule.updateRoutineSetting('reminderAlerts', this.checked)">
           </label>
         </div>
+
+        <!-- Today Alerts & Notifications -->
+        <div class="notify-settings-block">
+          <div class="notify-settings-header">
+            <div class="title-with-icon">
+              <i data-lucide="bell-ring" class="text-primary"></i>
+              <h4>Today Alerts &amp; Notifications</h4>
+            </div>
+            <span class="card-subtitle-tag">${window.Notifier ? window.Notifier.getPlatformLabel() : 'In-app alerts only'}</span>
+          </div>
+
+          <div class="routine-controls-grid">
+            <div class="form-group">
+              <label for="setting-digest-time"><i data-lucide="sunrise"></i> Daily Plan Alert Time</label>
+              <input type="time" id="setting-digest-time" class="form-control" value="${notify.digestTime || '07:00'}" onchange="Schedule.updateNotificationSetting('digestTime', this.value)">
+            </div>
+          </div>
+
+          <div class="routine-toggle-list">
+            <label class="routine-toggle-item">
+              <div class="toggle-meta">
+                <strong>Today's Plan Briefing</strong>
+                <span>One alert at the time above listing exactly what to study today.</span>
+              </div>
+              <input type="checkbox" class="routine-checkbox" ${notify.dailyDigest !== false ? 'checked' : ''} onchange="Schedule.updateNotificationSetting('dailyDigest', this.checked)">
+            </label>
+
+            <label class="routine-toggle-item">
+              <div class="toggle-meta">
+                <strong>Per-Block Reminders</strong>
+                <span>Nudges you when a block with a start time is about to begin.</span>
+              </div>
+              <input type="checkbox" class="routine-checkbox" ${notify.blockReminders !== false ? 'checked' : ''} onchange="Schedule.updateNotificationSetting('blockReminders', this.checked)">
+            </label>
+
+            <label class="routine-toggle-item">
+              <div class="toggle-meta">
+                <strong>Enable System Alerts</strong>
+                <span>Turn device notifications on or off. In-app alerts stay available either way.</span>
+              </div>
+              <input type="checkbox" class="routine-checkbox" ${notify.enabled !== false ? 'checked' : ''} onchange="Schedule.toggleNotifications(this.checked)">
+            </label>
+          </div>
+
+          <div class="notify-action-row">
+            <button class="btn-secondary" onclick="Schedule.testNotifications()">
+              <i data-lucide="send"></i> Send Test Alert
+            </button>
+            <span class="notify-permission-hint">${notifyHint}</span>
+          </div>
+        </div>
       </div>
 
       <!-- 6. Bottom Cloud Sync Bar -->
@@ -580,6 +641,54 @@ class ScheduleController {
     if (window.App) {
       window.App.showToast('Routine setting updated', 'info');
     }
+  }
+
+  updateNotificationSetting(key, value) {
+    Storage.updateNotificationSettings({ [key]: value });
+    if (window.App) {
+      window.App.showToast('Alert setting updated', 'info');
+    }
+    this.render();
+  }
+
+  async toggleNotifications(enable) {
+    if (!window.Notifier) return;
+
+    if (enable) {
+      const result = await window.Notifier.enable();
+      if (window.App) {
+        const messages = {
+          granted: ['System alerts are on.', 'success'],
+          unsupported: ['No system notifications on this device. In-app alerts still work.', 'info'],
+          denied: ['Notifications were blocked. Allow them in your device settings.', 'info']
+        };
+        const [message, type] = messages[result] || ['System alerts are on.', 'success'];
+        window.App.showToast(message, type);
+      }
+    } else {
+      await window.Notifier.disable();
+      if (window.App) {
+        window.App.showToast('System alerts turned off.', 'info');
+      }
+    }
+    this.render();
+  }
+
+  async testNotifications() {
+    if (!window.Notifier) return;
+    const result = await window.Notifier.sendTest();
+    if (window.App) {
+      const messages = {
+        sent: ['Test alert sent!', 'success'],
+        scheduled: ['Test alert scheduled — it arrives in a few seconds.', 'success'],
+        denied: ['Notifications are blocked for this app.', 'error'],
+        unsupported: ['System notifications are not available here.', 'info'],
+        error: ['Could not send the test alert.', 'error']
+      };
+      const [message, type] = messages[result] || ['Could not send the test alert.', 'error'];
+      window.App.showToast(message, type);
+    }
+    this.render();
   }
 
   saveSchedule() {
