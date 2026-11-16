@@ -256,9 +256,10 @@ class PlannerController {
     const dayOfWeek = Storage.getDayOfWeek(this.currentDate);
     const weeklySchedule = Storage.getWeeklySchedule();
     const dayConfig = weeklySchedule[dayOfWeek] || Storage.getDefaultWeeklySchedule()[dayOfWeek];
-    const pCode = CONFIG.subjects[dayConfig?.primary?.subject]?.code || 'ACC';
-    const sCode = CONFIG.subjects[dayConfig?.secondary?.subject]?.code || 'BST';
-    const rCode = CONFIG.subjects[dayConfig?.revision?.subject]?.code || 'ECO';
+    const subjects = Storage.getSubjects();
+    const pCode = Storage.getSubject(dayConfig?.primary?.subject)?.code || subjects[0]?.code || '';
+    const sCode = Storage.getSubject(dayConfig?.secondary?.subject)?.code || subjects[1]?.code || '';
+    const rCode = Storage.getSubject(dayConfig?.revision?.subject)?.code || subjects[2]?.code || '';
 
     let html = `
       <div class="planner-header-card card">
@@ -502,7 +503,7 @@ class PlannerController {
     const assignedIds = new Set();
     tasks.forEach(t => { if (t.subtopicId) assignedIds.add(t.subtopicId); });
 
-    const targetSub = subjectId || task.subjectId || 'accountancy';
+    const targetSub = subjectId || task.subjectId || Storage.getDefaultSubjectId();
     const topicObj = Storage.getNextUncompletedTopic(targetSub, assignedIds);
 
     if (topicObj) {
@@ -511,7 +512,7 @@ class PlannerController {
       task.subtopicId = topicObj.id;
       task.duration = topicObj.duration || task.duration;
       task.subjectId = targetSub;
-      task.subject = CONFIG.subjects[targetSub]?.name || targetSub;
+      task.subject = Storage.getSubjectName(targetSub) || targetSub;
       task.autoAssigned = true;
       Storage.updateState(state);
       if (window.App) {
@@ -520,7 +521,7 @@ class PlannerController {
       this.render();
     } else {
       if (window.App) {
-        window.App.showToast(`All syllabus topics completed for ${CONFIG.subjects[targetSub]?.name || targetSub}!`, 'info');
+        window.App.showToast(`All syllabus topics completed for ${Storage.getSubjectName(targetSub) || targetSub}!`, 'info');
       }
     }
   }

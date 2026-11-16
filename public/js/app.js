@@ -31,9 +31,39 @@ class AppOrchestrator {
       }
     });
 
+    // Populate subject pickers from the registry
+    this.populateSubjectSelects();
+
     // Initial render
     this.navigateToTab('planner');
     this.updateNavBadges();
+  }
+
+  /**
+   * Fill every subject <select> in the app from the student-owned subject
+   * registry, so no subject list is ever hardcoded in the markup.
+   */
+  populateSubjectSelects() {
+    const subjects = Storage.getSubjects();
+    const mockSelect = document.getElementById('mock-subject-select');
+    const parserSelect = document.getElementById('parser-subject-select');
+    const taskSelect = document.getElementById('modal-task-subject-select');
+
+    if (mockSelect) {
+      mockSelect.innerHTML = subjects.map(sub =>
+        `<option value="${sub.id}">${sub.name} (Max ${sub.cuetMaxScore || 200})</option>`
+      ).join('');
+    }
+    if (parserSelect) {
+      parserSelect.innerHTML = subjects.map(sub =>
+        `<option value="${sub.id}">${sub.name}</option>`
+      ).join('');
+    }
+    if (taskSelect) {
+      taskSelect.innerHTML = subjects.map(sub =>
+        `<option value="${sub.id}">${sub.name}</option>`
+      ).join('');
+    }
   }
 
   navigateToTab(tabName) {
@@ -330,16 +360,16 @@ CREATE POLICY "Allow anon update" ON public.student_progress FOR UPDATE TO anon 
 
     if (task) {
       if (titleInput) titleInput.value = task.topic;
-      if (subjectSelect) subjectSelect.value = task.subjectId || 'accountancy';
+      if (subjectSelect) subjectSelect.value = task.subjectId || Storage.getDefaultSubjectId();
       if (durationInput) durationInput.value = task.duration || 45;
     } else {
       if (titleInput) titleInput.value = '';
-      if (subjectSelect) subjectSelect.value = 'accountancy';
+      if (subjectSelect) subjectSelect.value = Storage.getDefaultSubjectId();
       if (durationInput) durationInput.value = 45;
     }
 
     // Populate queue suggestions
-    this.renderQueueSuggestionsInModal(subjectSelect ? subjectSelect.value : 'accountancy');
+    this.renderQueueSuggestionsInModal(subjectSelect ? subjectSelect.value : Storage.getDefaultSubjectId());
 
     modal.classList.add('active');
   }
@@ -402,7 +432,7 @@ CREATE POLICY "Allow anon update" ON public.student_progress FOR UPDATE TO anon 
         blockId: blockId,
         blockTitle: `${blockId.toUpperCase()} Block (${durationInput}m)`,
         duration: durationInput,
-        subject: CONFIG.subjects[subjectSelect]?.name || subjectSelect,
+        subject: Storage.getSubjectName(subjectSelect) || subjectSelect,
         subjectId: subjectSelect,
         topic: titleInput,
         unitTitle: 'Custom Study Plan',
@@ -415,7 +445,7 @@ CREATE POLICY "Allow anon update" ON public.student_progress FOR UPDATE TO anon 
       const target = tasks.find(t => t.id === hiddenTaskId);
       if (target) {
         target.topic = titleInput;
-        target.subject = CONFIG.subjects[subjectSelect]?.name || subjectSelect;
+        target.subject = Storage.getSubjectName(subjectSelect) || subjectSelect;
         target.subjectId = subjectSelect;
         target.duration = durationInput;
         if (hiddenSubtopicId) target.subtopicId = hiddenSubtopicId;

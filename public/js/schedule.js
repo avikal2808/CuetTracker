@@ -154,9 +154,10 @@ class ScheduleController {
             const d = weeklySchedule[dk] || Storage.getDefaultWeeklySchedule()[dk];
             const isSelected = dk === currentDayKey;
             const isToday = dk === todayDayKey;
-            const pCode = CONFIG.subjects[d.primary?.subject]?.code || 'ACC';
-            const sCode = CONFIG.subjects[d.secondary?.subject]?.code || 'BST';
-            const rCode = CONFIG.subjects[d.revision?.subject]?.code || 'ECO';
+            const subjects = Storage.getSubjects();
+            const pCode = Storage.getSubject(d.primary?.subject)?.code || subjects[0]?.code || '';
+            const sCode = Storage.getSubject(d.secondary?.subject)?.code || subjects[1]?.code || '';
+            const rCode = Storage.getSubject(d.revision?.subject)?.code || subjects[2]?.code || '';
             const shortName = d.name.slice(0, 3).toUpperCase();
 
             return `
@@ -225,9 +226,9 @@ class ScheduleController {
                 const d = weeklySchedule[dk] || Storage.getDefaultWeeklySchedule()[dk];
                 const isSelected = dk === currentDayKey;
                 const isToday = dk === todayDayKey;
-                const pSub = CONFIG.subjects[d.primary?.subject]?.name || d.primary?.subject || 'Accountancy';
-                const sSub = CONFIG.subjects[d.secondary?.subject]?.name || d.secondary?.subject || 'Business Studies';
-                const rSub = CONFIG.subjects[d.revision?.subject]?.name || d.revision?.subject || 'Economics';
+                const pSub = Storage.getSubjectName(d.primary?.subject) || d.primary?.subject || '';
+                const sSub = Storage.getSubjectName(d.secondary?.subject) || d.secondary?.subject || '';
+                const rSub = Storage.getSubjectName(d.revision?.subject) || d.revision?.subject || '';
                 const totalM = (parseInt(d.primary?.durationMinutes, 10) || 60) +
                                (parseInt(d.secondary?.durationMinutes, 10) || 45) +
                                (parseInt(d.revision?.durationMinutes, 10) || 30);
@@ -343,15 +344,13 @@ class ScheduleController {
   }
 
   renderDaySlotCard(dayKey, slotId, slot, defaultBadgeText, accentColor) {
-    const subjectsList = [
-      { id: 'accountancy', name: 'Accountancy (ACC)' },
-      { id: 'business_studies', name: 'Business Studies (BST)' },
-      { id: 'economics', name: 'Economics (ECO)' },
-      { id: 'english', name: 'English (ENG)' },
-      { id: 'general_test', name: 'General Test (GT)' }
-    ];
+    const subjectsList = Storage.getSubjects().map(sub => ({
+      id: sub.id,
+      name: `${sub.name} (${sub.code})`
+    }));
 
-    const currentSubjectId = slot?.subject || (slotId === 'primary' ? 'accountancy' : slotId === 'secondary' ? 'business_studies' : 'economics');
+    const fallbackIndex = slotId === 'primary' ? 0 : slotId === 'secondary' ? 1 : 2;
+    const currentSubjectId = slot?.subject || Storage.getRotationalSubjectId(fallbackIndex);
     const durationMins = parseInt(slot?.durationMinutes, 10) || (slotId === 'primary' ? 60 : slotId === 'secondary' ? 45 : 30);
     const presets = [30, 45, 60, 75, 90];
 
@@ -510,7 +509,7 @@ class ScheduleController {
     Storage.updateWeeklyDaySlot(dayKey, slotId, { subject: subjectId });
     this.render();
     if (window.App) {
-      const subName = CONFIG.subjects[subjectId]?.name || subjectId;
+      const subName = Storage.getSubjectName(subjectId) || subjectId;
       window.App.showToast(`Updated ${dayKey} ${slotId} block to ${subName}`, 'success');
     }
   }

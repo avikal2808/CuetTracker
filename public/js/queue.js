@@ -5,7 +5,7 @@
  */
 class QueueController {
   constructor() {
-    this.selectedSubject = 'accountancy';
+    this.selectedSubject = Storage.getDefaultSubjectId();
     this.filterState = 'all'; // 'all', 'pending', 'completed'
     this.searchQuery = '';
     this.parsedTopicsPreview = [];
@@ -87,7 +87,7 @@ class QueueController {
 
     if (targetTask) {
       targetTask.topic = subtopic.title;
-      targetTask.subject = CONFIG.subjects[subjectId]?.name || subjectId;
+      targetTask.subject = Storage.getSubjectName(subjectId) || subjectId;
       targetTask.subjectId = subjectId;
       targetTask.unitTitle = unitTitle;
       targetTask.subtopicId = subtopic.id;
@@ -99,7 +99,7 @@ class QueueController {
         blockId: 'secondary',
         blockTitle: `Custom Block (${subtopic.minutes || 45}m)`,
         duration: subtopic.minutes || 45,
-        subject: CONFIG.subjects[subjectId]?.name || subjectId,
+        subject: Storage.getSubjectName(subjectId) || subjectId,
         subjectId: subjectId,
         topic: subtopic.title,
         unitTitle: unitTitle,
@@ -270,7 +270,7 @@ class QueueController {
       state.queues[subjectId].unshift({
         id: t.id,
         subjectId: subjectId,
-        subjectName: CONFIG.subjects[subjectId]?.name || subjectId,
+        subjectName: Storage.getSubjectName(subjectId) || subjectId,
         unitTitle: 'Imported Syllabus Queue',
         title: t.title,
         duration: t.duration,
@@ -282,7 +282,7 @@ class QueueController {
     Storage.updateState(state);
     this.closeParserModal();
     if (window.App) {
-      window.App.showToast(`Imported ${selected.length} topics into ${CONFIG.subjects[subjectId]?.name} queue!`, 'success');
+      window.App.showToast(`Imported ${selected.length} topics into ${Storage.getSubjectName(subjectId)} queue!`, 'success');
     }
   }
 
@@ -322,7 +322,7 @@ class QueueController {
     if (!container) return;
 
     const state = Storage.getState();
-    const currentSubjectMeta = CONFIG.subjects[this.selectedSubject];
+    const currentSubjectMeta = Storage.getSubject(this.selectedSubject) || Storage.getSubjects()[0] || {};
     const syllabusObj = DEFAULT_SYLLABUS[this.selectedSubject];
     const rotationalQueue = state.queues[this.selectedSubject] || [];
     const progressMap = state.syllabusProgress || {};
@@ -352,8 +352,8 @@ class QueueController {
           <div class="subject-pills-scroll">
     `;
 
-    Object.keys(CONFIG.subjects).forEach(subKey => {
-      const sub = CONFIG.subjects[subKey];
+    Storage.getSubjects().forEach(sub => {
+      const subKey = sub.id;
       const isSelected = subKey === this.selectedSubject;
       html += `
         <button class="subject-pill-btn ${isSelected ? 'active' : ''}" onclick="Queue.setSubject('${subKey}')">

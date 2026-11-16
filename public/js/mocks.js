@@ -38,11 +38,11 @@ class MocksController {
     const maxScoreInput = document.getElementById('mock-max-score-input');
     const dateInput = document.getElementById('mock-date-input');
 
-    const subjectKey = preSelectedSubject || (this.selectedSubjectFilter !== 'all' ? this.selectedSubjectFilter : 'accountancy');
+    const subjectKey = preSelectedSubject || (this.selectedSubjectFilter !== 'all' ? this.selectedSubjectFilter : Storage.getDefaultSubjectId());
 
     if (subjectSelect) subjectSelect.value = subjectKey;
     if (mockNumberInput) mockNumberInput.value = this.getNextMockNumber(subjectKey);
-    if (maxScoreInput) maxScoreInput.value = CONFIG.subjects[subjectKey]?.cuetMaxScore || 200;
+    if (maxScoreInput) maxScoreInput.value = Storage.getSubject(subjectKey)?.cuetMaxScore || 200;
     if (dateInput) dateInput.value = Storage.getTodayString();
 
     // Reset other fields
@@ -75,7 +75,7 @@ class MocksController {
       mockNumberInput.value = this.getNextMockNumber(subjectKey);
     }
     if (maxScoreInput) {
-      maxScoreInput.value = CONFIG.subjects[subjectKey]?.cuetMaxScore || 200;
+      maxScoreInput.value = Storage.getSubject(subjectKey)?.cuetMaxScore || 200;
     }
     if (scoreInput && scoreInput.value) {
       this.handleScoreInput(scoreInput.value);
@@ -120,7 +120,7 @@ class MocksController {
     const newMock = {
       id: `mock_${Date.now()}`,
       subjectId: subjectId,
-      subjectName: CONFIG.subjects[subjectId]?.name || subjectId,
+      subjectName: Storage.getSubjectName(subjectId) || subjectId,
       mockNumber: parseInt(mockNumberInput.value, 10) || this.getNextMockNumber(subjectId),
       date: dateInput.value || Storage.getTodayString(),
       score: score,
@@ -273,7 +273,7 @@ class MocksController {
         <div class="mocks-header-top">
           <div>
             <h2>CUET Mock Test Tracker</h2>
-            <p class="section-subtitle">Track scores across 5 core CUET subjects & analyze performance trends.</p>
+            <p class="section-subtitle">Track scores across your ${Storage.getSubjects().length} CUET subjects & analyze performance trends.</p>
           </div>
           <button class="btn-log-mock-primary" onclick="Mocks.openLogMockModal()">
             <i data-lucide="plus-circle"></i> Log Mock Test
@@ -309,8 +309,8 @@ class MocksController {
         </button>
     `;
 
-    Object.keys(CONFIG.subjects).forEach(subKey => {
-      const sub = CONFIG.subjects[subKey];
+    Storage.getSubjects().forEach(sub => {
+      const subKey = sub.id;
       const count = mocks.filter(m => m.subjectId === subKey).length;
       html += `
         <button class="filter-tab ${this.selectedSubjectFilter === subKey ? 'active' : ''}" onclick="Mocks.setSubjectFilter('${subKey}')">

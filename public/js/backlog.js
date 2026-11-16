@@ -228,7 +228,7 @@ class BacklogController {
             <div class="backlog-item-row">
               <div class="item-left-col">
                 <div class="item-header-meta">
-                  <span class="subject-tag ${item.subjectId || 'accountancy'}">${item.subject}</span>
+                  <span class="subject-tag ${item.subjectId || Storage.getDefaultSubjectId()}">${item.subject}</span>
                   <span class="item-duration-tag"><i data-lucide="clock"></i> ${item.duration || 45}m</span>
                   <span class="item-reason-tag">${item.reason || 'Midnight Rollover'}</span>
                 </div>

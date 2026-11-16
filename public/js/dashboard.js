@@ -262,14 +262,14 @@ class DashboardController {
       <!-- Subject-Wise Mastery Breakdown -->
       <div class="section-title-row">
         <h3><i data-lucide="bar-chart-2"></i> Subject Mastery & Progress</h3>
-        <span class="queue-count-badge">${stats.totalSubtopics} topics across 5 subjects</span>
+        <span class="queue-count-badge">${stats.totalSubtopics} topics across ${Storage.getSubjects().length} subjects</span>
       </div>
 
       <div class="subject-breakdown-stack">
     `;
 
-    Object.keys(CONFIG.subjects).forEach(subKey => {
-      const sub = CONFIG.subjects[subKey];
+    Storage.getSubjects().forEach(sub => {
+      const subKey = sub.id;
       const data = stats.subjectStats[subKey] || { total: 0, completed: 0, percentage: 0 };
 
       html += `

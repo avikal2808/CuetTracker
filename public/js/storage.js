@@ -88,6 +88,8 @@ class StudyStorage {
       updatedAt: new Date().toISOString(),
       studentRecordId: CONFIG.supabase.studentRecordId,
       lastRolloverDate: today,
+      // Student-owned subject registry — single source of truth for subjects.
+      subjects: this.getDefaultSubjects(),
       targetPercentage: 93, // 93%+ board target
       studyPaceDailyTopics: 2.2,
       timeBlocks: [
@@ -151,6 +153,11 @@ class StudyStorage {
         targetCollege: 'SRCC / Hindu / St. Stephen’s / LSR'
       }
     };
+  }
+
+  /** Seed registry for a fresh install, cloned so later edits never mutate CONFIG. */
+  getDefaultSubjects() {
+    return Object.values(CONFIG.subjects).map(sub => ({ ...sub }));
   }
 
   getDefaultWeeklySchedule() {
@@ -435,6 +442,9 @@ class StudyStorage {
       timeBlocks: existing.timeBlocks && Array.isArray(existing.timeBlocks) && existing.timeBlocks.length > 0
         ? existing.timeBlocks
         : def.timeBlocks,
+      subjects: Array.isArray(existing.subjects) && existing.subjects.length > 0
+        ? existing.subjects
+        : def.subjects,
       routineSettings: { ...def.routineSettings, ...(existing.routineSettings || {}) },
       planner: { ...def.planner, ...(existing.planner || {}) },
       queues: { ...def.queues, ...(existing.queues || {}) },
@@ -451,6 +461,35 @@ class StudyStorage {
       return this.state.timeBlocks;
     }
     return CONFIG.timeBlocks;
+  }
+
+  getSubjects() {
+    if (this.state && Array.isArray(this.state.subjects) && this.state.subjects.length > 0) {
+      return this.state.subjects;
+    }
+    return this.getDefaultSubjects();
+  }
+
+  getSubject(subjectId) {
+    if (!subjectId) return null;
+    return this.getSubjects().find(sub => sub.id === subjectId) || null;
+  }
+
+  getSubjectName(subjectId) {
+    const sub = this.getSubject(subjectId);
+    return sub ? sub.name : (subjectId || '');
+  }
+
+  getDefaultSubjectId() {
+    const subjects = this.getSubjects();
+    return subjects.length > 0 ? subjects[0].id : null;
+  }
+
+  /** Used when a weekly-schedule slot has no subject set — rotates through the registry. */
+  getRotationalSubjectId(index = 0) {
+    const subjects = this.getSubjects();
+    if (subjects.length === 0) return null;
+    return subjects[index % subjects.length].id;
   }
 
   getRoutineSettings() {
@@ -902,7 +941,7 @@ class StudyStorage {
         return {
           id: item.id,
           title: item.title,
-          unitTitle: item.unitTitle || (CONFIG.subjects[subjectId]?.name || 'Syllabus'),
+          unitTitle: item.unitTitle || this.getSubjectName(subjectId) || 'Syllabus',
           duration: item.duration || 45,
           subjectId: subjectId
         };
@@ -928,7 +967,7 @@ class StudyStorage {
     }
 
     // 3. If all subtopics completed, provide a high-yield mastery recall topic
-    const subjectName = CONFIG.subjects[subjectId]?.name || subjectId;
+    const subjectName = this.getSubjectName(subjectId) || subjectId;
     return {
       id: null,
       title: `${subjectName} Master Revision & High-Yield CUET MCQs`,
@@ -953,17 +992,17 @@ class StudyStorage {
         durationMinutes: slotKey === 'primary' ? 60 : slotKey === 'secondary' ? 45 : 30,
         startTime: slotKey === 'primary' ? '07:00' : slotKey === 'secondary' ? '15:30' : '20:30',
         endTime: slotKey === 'primary' ? '08:00' : slotKey === 'secondary' ? '16:15' : '21:00',
-        subject: slotKey === 'primary' ? 'accountancy' : slotKey === 'secondary' ? 'business_studies' : 'economics'
+        subject: this.getRotationalSubjectId(index)
       };
 
-      const subjectKey = slot.subject || (slotKey === 'primary' ? 'accountancy' : slotKey === 'secondary' ? 'business_studies' : 'economics');
+      const subjectKey = slot.subject || this.getRotationalSubjectId(index);
       const topicObj = this.getNextUncompletedTopic(subjectKey, assignedIds);
       if (topicObj?.id) {
         assignedIds.add(topicObj.id);
       }
 
       const duration = parseInt(slot.durationMinutes, 10) || (slotKey === 'primary' ? 60 : slotKey === 'secondary' ? 45 : 30);
-      const subjectName = CONFIG.subjects[subjectKey]?.name || 'Commerce';
+      const subjectName = this.getSubjectName(subjectKey) || 'Commerce';
 
       return {
         id: `task_${Date.now()}_${index}`,
@@ -1013,7 +1052,7 @@ class StudyStorage {
             if (topicObj) {
               if (topicObj.id) assignedIds.add(topicObj.id);
               task.subjectId = subjectKey;
-              task.subject = CONFIG.subjects[subjectKey]?.name || subjectKey;
+              task.subject = this.getSubjectName(subjectKey) || subjectKey;
               task.topic = topicObj.title;
               task.unitTitle = topicObj.unitTitle;
               task.subtopicId = topicObj.id;
@@ -1031,7 +1070,7 @@ class StudyStorage {
               duration: parseInt(slot.durationMinutes, 10) || 45,
               startTime: slot.startTime || '',
               endTime: slot.endTime || '',
-              subject: CONFIG.subjects[subjectKey]?.name || 'Commerce',
+              subject: this.getSubjectName(subjectKey) || 'Commerce',
               subjectId: subjectKey,
               topic: topicObj ? topicObj.title : 'Add a topic from the queue',
               unitTitle: topicObj ? topicObj.unitTitle : 'Select from syllabus',
