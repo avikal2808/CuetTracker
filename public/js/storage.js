@@ -72,7 +72,6 @@ class StudyStorage {
             unitTitle: unit.title,
             title: topic.title,
             duration: topic.minutes,
-            isCompleted: false,
             priority: count < 2 ? 'high' : 'normal'
           });
           count++;
@@ -960,7 +959,7 @@ class StudyStorage {
     // 1. Search in student rotational queues
     const queue = (this.state?.queues?.[subjectId] || []);
     for (const item of queue) {
-      if (!item.isCompleted && !this.isSubtopicDone(item.id) && !excludedIds.has(item.id)) {
+      if (!this.isSubtopicDone(item.id) && !excludedIds.has(item.id)) {
         return {
           id: item.id,
           title: item.title,

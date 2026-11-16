@@ -49,15 +49,6 @@ class QueueController {
       preMarked: preMarked
     };
 
-    // Update queue representation
-    Object.keys(state.queues || {}).forEach(subKey => {
-      const q = state.queues[subKey];
-      const found = q.find(item => item.id === subtopicId);
-      if (found) {
-        found.isCompleted = newStatus;
-      }
-    });
-
     Storage.updateState(state);
 
     if (window.App) {
@@ -294,7 +285,6 @@ class QueueController {
         unitTitle: 'Imported Syllabus Queue',
         title: t.title,
         duration: t.duration,
-        isCompleted: false,
         priority: 'high'
       });
 
