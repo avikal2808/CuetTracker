@@ -205,10 +205,10 @@
         </div>
 
         <div class="parser-tabs-row">
-          <button id="tab-btn-text" class="parser-tab-btn active" onclick="document.getElementById('parser-text-section').style.display='block'; document.getElementById('parser-photo-section').style.display='none'; this.classList.add('active'); document.getElementById('tab-btn-photo').classList.remove('active');">
+          <button id="tab-btn-text" class="parser-tab-btn active" onclick="Queue.showParserTab('text')">
             Text / Syllabus Paste
           </button>
-          <button id="tab-btn-photo" class="parser-tab-btn" onclick="document.getElementById('parser-text-section').style.display='none'; document.getElementById('parser-photo-section').style.display='block'; this.classList.add('active'); document.getElementById('tab-btn-text').classList.remove('active');">
+          <button id="tab-btn-photo" class="parser-tab-btn" onclick="Queue.showParserTab('photo')">
             Photo Upload / AI Reader
           </button>
         </div>

@@ -2542,6 +2542,32 @@ p {
   border: 1px solid var(--border);
 }
 
+/* AI reader status line under the photo box */
+#parser-photo-status {
+  min-height: 18px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.parser-status-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--secondary-text);
+}
+
+.spinner-inline {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary-accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 .parsed-preview-container {
   max-height: 200px;
   overflow-y: auto;
@@ -2561,6 +2587,10 @@ p {
 
 .parsed-item-row:last-child {
   border-bottom: none;
+}
+
+.parsed-item-row.is-selected {
+  background: #F1F7F2;
 }
 
 .parsed-item-details {

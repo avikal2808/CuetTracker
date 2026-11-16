@@ -126,11 +126,43 @@ class QueueController {
   // --- Photo & Text Parser Logic ---
   openParserModal() {
     this.parsedTopicsPreview = [];
+
+    // Fresh slate on every open: no stale photo, status line or pasted text,
+    // and the picker pre-selected on the subject the student is browsing.
+    const statusMsg = document.getElementById('parser-photo-status');
+    if (statusMsg) statusMsg.innerHTML = '';
+    const previewImg = document.getElementById('parser-photo-preview');
+    if (previewImg) {
+      previewImg.removeAttribute('src');
+      previewImg.style.display = 'none';
+    }
+    const rawText = document.getElementById('parser-raw-text');
+    if (rawText) rawText.value = '';
+
+    const subjectSelect = document.getElementById('parser-subject-select');
+    if (subjectSelect && this.selectedSubject) subjectSelect.value = this.selectedSubject;
+
+    this.showParserTab('text');
+
     const modal = document.getElementById('parser-modal');
     if (modal) {
       modal.classList.add('active');
       this.renderParserPreview();
     }
+  }
+
+  /** Toggle the Import modal between the "paste text" and "photo / AI" panels. */
+  showParserTab(tab) {
+    const isPhoto = tab === 'photo';
+    const textSection = document.getElementById('parser-text-section');
+    const photoSection = document.getElementById('parser-photo-section');
+    const textBtn = document.getElementById('tab-btn-text');
+    const photoBtn = document.getElementById('tab-btn-photo');
+
+    if (textSection) textSection.style.display = isPhoto ? 'none' : 'block';
+    if (photoSection) photoSection.style.display = isPhoto ? 'block' : 'none';
+    if (textBtn) textBtn.classList.toggle('active', !isPhoto);
+    if (photoBtn) photoBtn.classList.toggle('active', isPhoto);
   }
 
   closeParserModal() {
@@ -273,18 +305,33 @@ class QueueController {
 
   async handlePhotoUpload(fileInput) {
     const file = fileInput.files && fileInput.files[0];
+    // Reset the input so re-picking the exact same photo still fires onchange.
+    fileInput.value = '';
     if (!file) return;
 
-    const previewImg = document.getElementById('parser-photo-preview');
     const statusMsg = document.getElementById('parser-photo-status');
+    const setStatus = html => { if (statusMsg) statusMsg.innerHTML = html; };
+    const refreshIcons = () => { if (window.lucide) window.lucide.createIcons(); };
+
+    const previewImg = document.getElementById('parser-photo-preview');
     if (previewImg) {
       previewImg.src = URL.createObjectURL(file);
       previewImg.style.display = 'block';
     }
 
-    if (statusMsg) {
-      statusMsg.innerHTML = `<span class="spinner-inline"></span> Sending the photo to the AI syllabus reader...`;
+    // Drop any previous crop of results so stale rows are never reviewed.
+    this.parsedTopicsPreview = [];
+    this.renderParserPreview();
+
+    // Gemini inline data tops out around 5.5 MB of base64 (≈ 4 MB of photo).
+    if (file.size > 4 * 1024 * 1024) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      setStatus(`<span class="text-danger"><i data-lucide="alert-triangle"></i> That photo is ${mb} MB. Please use one under 4 MB.</span>`);
+      refreshIcons();
+      return;
     }
+
+    setStatus(`<span class="parser-status-loading"><span class="spinner-inline"></span> Reading the syllabus page with AI...</span>`);
 
     const subjectId = document.getElementById('parser-subject-select')?.value || this.selectedSubject;
 
@@ -303,21 +350,18 @@ class QueueController {
 
       this.applyExtractedTopics(payload.topics || [], subjectId);
 
-      if (statusMsg) {
-        if (this.parsedTopicsPreview.length > 0) {
-          const newCount = this.parsedTopicsPreview.filter(t => t.status === 'new').length;
-          statusMsg.innerHTML = `<span class="text-emerald"><i data-lucide="check-circle-2"></i> Found ${this.parsedTopicsPreview.length} topic(s) — ${newCount} new. Review below.</span>`;
-        } else {
-          statusMsg.innerHTML = `<span class="text-amber"><i data-lucide="alert-circle"></i> No syllabus topics were detected in that photo. Try a clearer shot or paste the text instead.</span>`;
-        }
+      if (this.parsedTopicsPreview.length > 0) {
+        const newCount = this.parsedTopicsPreview.filter(t => t.status === 'new').length;
+        setStatus(`<span class="text-emerald"><i data-lucide="check-circle-2"></i> Found ${this.parsedTopicsPreview.length} topic(s) — ${newCount} new. Review below.</span>`);
+      } else {
+        setStatus(`<span class="text-amber"><i data-lucide="alert-circle"></i> No syllabus topics were detected in that photo. Try a clearer shot or paste the text instead.</span>`);
       }
     } catch (err) {
-      if (statusMsg) {
-        statusMsg.innerHTML = `<span class="text-error"><i data-lucide="alert-triangle"></i> ${err.message || 'Could not read that image.'}</span>`;
-      }
+      const message = (err && err.message) || 'Could not read that image.';
+      setStatus(`<span class="text-danger"><i data-lucide="alert-triangle"></i> ${message}</span>`);
     }
 
-    if (window.lucide) window.lucide.createIcons();
+    refreshIcons();
   }
 
   toggleParsedItem(index) {
