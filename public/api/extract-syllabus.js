@@ -10,7 +10,7 @@
  *
  * Vercel → Project → Settings → Environment Variables:
  *   GEMINI_API_KEY  (required)
- *   GEMINI_MODEL    (optional, defaults to gemini-2.0-flash)
+ *   GEMINI_MODEL    (optional, defaults to gemini-flash-lite-latest)
  */
 
 // ~5.5 MB of base64 ≈ a 4 MB photo once decoded.
@@ -75,7 +75,11 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  // The full Flash tiers get saturated and answer 503 under load while the lite
+  // tiers stay responsive; the "-latest" alias also survives model retirements
+  // (a pinned default silently started returning 404 once). Override with
+  // GEMINI_MODEL if a different model is wanted.
+  const model = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   try {
@@ -101,7 +105,15 @@ module.exports = async function handler(req, res) {
 
     if (!geminiRes.ok) {
       const detail = await geminiRes.text();
-      res.status(502).json({ error: 'The AI reader could not process that photo.', detail: detail.slice(0, 500) });
+      // 429/503 mean the model is overloaded, not that the photo is unreadable —
+      // say so, because retrying the same photo is all the student needs to do.
+      const busy = geminiRes.status === 429 || geminiRes.status === 503;
+      res.status(502).json({
+        error: busy
+          ? "Google's AI model is busy right now. Please try that photo again in a moment."
+          : 'The AI reader could not process that photo.',
+        detail: detail.slice(0, 500)
+      });
       return;
     }
 
