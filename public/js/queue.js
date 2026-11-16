@@ -266,6 +266,26 @@ class QueueController {
     const subjectId = selected[0].subjectId || this.selectedSubject;
     if (!state.queues[subjectId]) state.queues[subjectId] = [];
 
+    // Imported topics also join the student-owned syllabus so they count toward
+    // progress and show up in the master checklist — not just the queue.
+    if (!state.syllabus || typeof state.syllabus !== 'object') state.syllabus = Storage.getSyllabus();
+    if (!state.syllabus[subjectId]) {
+      state.syllabus[subjectId] = {
+        id: subjectId,
+        title: Storage.getSubjectName(subjectId) || subjectId,
+        units: []
+      };
+    }
+    const syllabusSubject = state.syllabus[subjectId];
+    if (!Array.isArray(syllabusSubject.units)) syllabusSubject.units = [];
+
+    let importedUnit = syllabusSubject.units.find(u => u.title === 'Imported Topics');
+    if (!importedUnit) {
+      importedUnit = { title: 'Imported Topics', subtopics: [] };
+      syllabusSubject.units.push(importedUnit);
+    }
+    const existingTitles = new Set(importedUnit.subtopics.map(st => st.title.trim().toLowerCase()));
+
     selected.forEach(t => {
       state.queues[subjectId].unshift({
         id: t.id,
@@ -277,6 +297,12 @@ class QueueController {
         isCompleted: false,
         priority: 'high'
       });
+
+      const key = t.title.trim().toLowerCase();
+      if (!existingTitles.has(key)) {
+        existingTitles.add(key);
+        importedUnit.subtopics.push({ id: t.id, title: t.title, minutes: t.duration });
+      }
     });
 
     Storage.updateState(state);
@@ -323,7 +349,7 @@ class QueueController {
 
     const state = Storage.getState();
     const currentSubjectMeta = Storage.getSubject(this.selectedSubject) || Storage.getSubjects()[0] || {};
-    const syllabusObj = DEFAULT_SYLLABUS[this.selectedSubject];
+    const syllabusObj = Storage.getSubjectSyllabus(this.selectedSubject);
     const rotationalQueue = state.queues[this.selectedSubject] || [];
     const progressMap = state.syllabusProgress || {};
 

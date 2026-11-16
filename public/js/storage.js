@@ -90,6 +90,9 @@ class StudyStorage {
       lastRolloverDate: today,
       // Student-owned subject registry — single source of truth for subjects.
       subjects: this.getDefaultSubjects(),
+      // Student-owned syllabus — seeded from the shipped syllabus, then edited
+      // (or extended by imports) without ever mutating the source data.
+      syllabus: this.getDefaultSyllabus(),
       targetPercentage: 93, // 93%+ board target
       studyPaceDailyTopics: 2.2,
       timeBlocks: [
@@ -158,6 +161,11 @@ class StudyStorage {
   /** Seed registry for a fresh install, cloned so later edits never mutate CONFIG. */
   getDefaultSubjects() {
     return Object.values(CONFIG.subjects).map(sub => ({ ...sub }));
+  }
+
+  /** Seed syllabus for a fresh install, deep-cloned so later edits never mutate the source. */
+  getDefaultSyllabus() {
+    return JSON.parse(JSON.stringify(DEFAULT_SYLLABUS));
   }
 
   getDefaultWeeklySchedule() {
@@ -445,6 +453,9 @@ class StudyStorage {
       subjects: Array.isArray(existing.subjects) && existing.subjects.length > 0
         ? existing.subjects
         : def.subjects,
+      syllabus: (existing.syllabus && typeof existing.syllabus === 'object' && Object.keys(existing.syllabus).length > 0)
+        ? existing.syllabus
+        : def.syllabus,
       routineSettings: { ...def.routineSettings, ...(existing.routineSettings || {}) },
       planner: { ...def.planner, ...(existing.planner || {}) },
       queues: { ...def.queues, ...(existing.queues || {}) },
@@ -473,6 +484,18 @@ class StudyStorage {
   getSubject(subjectId) {
     if (!subjectId) return null;
     return this.getSubjects().find(sub => sub.id === subjectId) || null;
+  }
+
+  getSyllabus() {
+    if (this.state && this.state.syllabus && typeof this.state.syllabus === 'object' && Object.keys(this.state.syllabus).length > 0) {
+      return this.state.syllabus;
+    }
+    return this.getDefaultSyllabus();
+  }
+
+  getSubjectSyllabus(subjectId) {
+    if (!subjectId) return null;
+    return this.getSyllabus()[subjectId] || null;
   }
 
   getSubjectName(subjectId) {
@@ -948,8 +971,8 @@ class StudyStorage {
       }
     }
 
-    // 2. Fallback to DEFAULT_SYLLABUS
-    const sub = DEFAULT_SYLLABUS[subjectId];
+    // 2. Fallback to the student-owned syllabus
+    const sub = this.getSubjectSyllabus(subjectId);
     if (sub && Array.isArray(sub.units)) {
       for (const unit of sub.units) {
         for (const st of unit.subtopics) {

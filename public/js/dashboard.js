@@ -65,8 +65,9 @@ class DashboardController {
     let completedSubtopics = 0;
     const subjectStats = {};
 
-    Object.keys(DEFAULT_SYLLABUS).forEach(subKey => {
-      const sub = DEFAULT_SYLLABUS[subKey];
+    const syllabus = Storage.getSyllabus();
+    Object.keys(syllabus).forEach(subKey => {
+      const sub = syllabus[subKey];
       let subTotal = 0;
       let subCompleted = 0;
 
