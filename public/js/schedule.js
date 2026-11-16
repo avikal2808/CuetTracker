@@ -1,16 +1,14 @@
 /**
- * Weekly Schedule & Routine Controller
- * Manages the dedicated "Schedule" tab:
- * - 7-Day Weekly Timetable (Monday through Sunday)
- * - Fixed slot configuration: Primary (60m), Secondary (45m), Revision (30m)
- * - Rotational Auto-Assigner linking timetable days directly to uncompleted syllabus subtopics
- * - Live queue preview for each block
- * - 1-Click "Auto-Assign to Today" & "Reset to Recommended Weekly Routine"
+ * Study Schedule Controller
+ * Manages the dedicated "Schedule" tab as a free-form, day-by-day planner:
+ * - Pick any date and build your own blocks (no weekday template, no fixed subjects)
+ * - Every block holds: subject + duration + topic
+ * - Optional "Pull next topic" hands a block the next uncompleted syllabus subtopic
  * - Full offline-first LocalStorage & Supabase Cloud Sync
  */
 class ScheduleController {
   constructor() {
-    this.selectedDayKey = Storage.getDayOfWeek(Storage.getTodayString());
+    this.currentDate = Storage.getTodayString();
     this.init();
   }
 
@@ -28,44 +26,209 @@ class ScheduleController {
     });
   }
 
-  selectDay(dayKey) {
-    this.selectedDayKey = dayKey;
+  /* ----------------------------- date handling ----------------------------- */
+
+  setDate(dateStr) {
+    if (!dateStr) return;
+    this.currentDate = dateStr;
     this.render();
   }
+
+  shiftDate(dateStr, deltaDays) {
+    const d = new Date(`${dateStr}T00:00:00`);
+    d.setDate(d.getDate() + deltaDays);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  goToPreviousDay() {
+    this.setDate(this.shiftDate(this.currentDate, -1));
+  }
+
+  goToNextDay() {
+    this.setDate(this.shiftDate(this.currentDate, 1));
+  }
+
+  goToToday() {
+    this.setDate(Storage.getTodayString());
+  }
+
+  formatDateLabel(dateStr) {
+    const d = new Date(`${dateStr}T00:00:00`);
+    const formatted = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    return dateStr === Storage.getTodayString() ? `Today &bull; ${formatted}` : formatted;
+  }
+
+  formatTimeDisplay(timeStr) {
+    if (!timeStr) return '';
+    const parts = String(timeStr).split(':');
+    const h = parseInt(parts[0], 10);
+    if (Number.isNaN(h)) return timeStr;
+    const m = parseInt(parts[1], 10) || 0;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
+  }
+
+  escapeHtml(str) {
+    return String(str || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /* ------------------------------ block editing ---------------------------- */
+
+  addBlock() {
+    const subjectSelect = document.getElementById('new-block-subject');
+    const topicInput = document.getElementById('new-block-topic');
+    const durationInput = document.getElementById('new-block-duration');
+    const startInput = document.getElementById('new-block-start');
+
+    const duration = Math.max(15, Math.min(180, parseInt(durationInput?.value, 10) || 45));
+    const startTime = startInput?.value || '';
+    const endTime = startTime ? this.calcEndTime(startTime, duration) : '';
+
+    Storage.addScheduleBlock(this.currentDate, {
+      subjectId: subjectSelect?.value || Storage.getDefaultSubjectId(),
+      topic: (topicInput?.value || '').trim(),
+      duration: duration,
+      startTime: startTime,
+      endTime: endTime
+    });
+
+    if (window.App) {
+      window.App.showToast(`Block added to ${this.currentDate}.`, 'success');
+    }
+    this.render();
+  }
+
+  updateBlockSubject(blockId, subjectId) {
+    Storage.updateScheduleBlock(this.currentDate, blockId, { subjectId: subjectId });
+    if (window.App) {
+      window.App.showToast(`Block moved to ${Storage.getSubjectName(subjectId)}.`, 'success');
+    }
+  }
+
+  updateBlockTopic(blockId, topic) {
+    const value = (topic || '').trim();
+    const block = Storage.getDaySchedule(this.currentDate).find(b => b.id === blockId);
+    // A hand-typed topic replaces whatever the bot had pulled in.
+    const stillLinked = block && block.topic === value;
+    Storage.updateScheduleBlock(this.currentDate, blockId, {
+      topic: value,
+      subtopicId: stillLinked ? block.subtopicId : null,
+      autoAssigned: stillLinked ? block.autoAssigned : false
+    });
+  }
+
+  updateBlockDuration(blockId, duration) {
+    const mins = Math.max(15, Math.min(180, parseInt(duration, 10) || 45));
+    const block = Storage.getDaySchedule(this.currentDate).find(b => b.id === blockId);
+    const updates = { duration: mins };
+    if (block?.startTime) {
+      updates.endTime = this.calcEndTime(block.startTime, mins);
+    }
+    Storage.updateScheduleBlock(this.currentDate, blockId, updates);
+  }
+
+  adjustBlockDuration(blockId, delta) {
+    const block = Storage.getDaySchedule(this.currentDate).find(b => b.id === blockId);
+    this.updateBlockDuration(blockId, (parseInt(block?.duration, 10) || 45) + delta);
+  }
+
+  updateBlockStartTime(blockId, startTime) {
+    const block = Storage.getDaySchedule(this.currentDate).find(b => b.id === blockId);
+    Storage.updateScheduleBlock(this.currentDate, blockId, {
+      startTime: startTime,
+      endTime: startTime ? this.calcEndTime(startTime, block?.duration || 45) : ''
+    });
+  }
+
+  removeBlock(blockId) {
+    const block = Storage.getDaySchedule(this.currentDate).find(b => b.id === blockId);
+    if (!block) return;
+    if (!confirm(`Delete "${block.topic || 'this block'}"?`)) return;
+
+    Storage.removeScheduleBlock(this.currentDate, blockId);
+    if (window.App) {
+      window.App.showToast('Block deleted.', 'info');
+    }
+  }
+
+  pullNextTopic(blockId) {
+    const block = Storage.getDaySchedule(this.currentDate).find(b => b.id === blockId);
+    if (!block) return;
+
+    const assignedIds = new Set();
+    Storage.getDaySchedule(this.currentDate).forEach(b => {
+      if (b.subtopicId && b.id !== blockId) assignedIds.add(b.subtopicId);
+    });
+
+    const topicObj = Storage.getNextUncompletedTopic(block.subjectId, assignedIds);
+    if (!topicObj) {
+      if (window.App) {
+        window.App.showToast(`Could not find an uncompleted topic for ${Storage.getSubjectName(block.subjectId)}.`, 'info');
+      }
+      return;
+    }
+
+    Storage.updateScheduleBlock(this.currentDate, blockId, {
+      topic: topicObj.title,
+      unitTitle: topicObj.unitTitle,
+      subtopicId: topicObj.id,
+      autoAssigned: true
+    });
+
+    if (window.App) {
+      window.App.showToast(`Pulled "${topicObj.title}" into this block.`, 'success');
+    }
+  }
+
+  fillDayTopics() {
+    const filled = Storage.fillDayTopics(this.currentDate, false);
+    if (window.App) {
+      window.App.showToast(
+        filled > 0 ? `Filled ${filled} empty block${filled > 1 ? 's' : ''} with the next syllabus topics.` : 'Every block already has a topic.',
+        filled > 0 ? 'success' : 'info'
+      );
+    }
+  }
+
+  clearDay() {
+    const blocks = Storage.getDaySchedule(this.currentDate);
+    if (blocks.length === 0) return;
+    if (!confirm(`Remove all ${blocks.length} block(s) from ${this.currentDate}?`)) return;
+
+    blocks.slice().forEach(block => Storage.removeScheduleBlock(this.currentDate, block.id));
+    if (window.App) {
+      window.App.showToast('Day cleared.', 'info');
+    }
+  }
+
+  calcEndTime(startTimeStr, durationMinutes) {
+    const parts = String(startTimeStr || '07:00').split(':');
+    const totalM = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0) + (parseInt(durationMinutes, 10) || 0);
+    const endH = Math.floor(totalM / 60) % 24;
+    const endM = totalM % 60;
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+  }
+
+  /* -------------------------------- rendering ------------------------------ */
 
   render() {
     const container = document.getElementById('schedule-view-container');
     if (!container) return;
 
-    const weeklySchedule = Storage.getWeeklySchedule();
-    const todayDayKey = Storage.getDayOfWeek(Storage.getTodayString());
-    const currentDayKey = this.selectedDayKey || todayDayKey;
-    const currentDay = weeklySchedule[currentDayKey] || Storage.getDefaultWeeklySchedule()[currentDayKey];
-
-    // Compute weekly statistics
-    const daysList = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    let totalWeeklyMinutes = 0;
-    daysList.forEach(dk => {
-      const d = weeklySchedule[dk];
-      if (d) {
-        totalWeeklyMinutes += (parseInt(d.primary?.durationMinutes, 10) || 60);
-        totalWeeklyMinutes += (parseInt(d.secondary?.durationMinutes, 10) || 45);
-        totalWeeklyMinutes += (parseInt(d.revision?.durationMinutes, 10) || 30);
-      }
-    });
-    const totalWeeklyHours = (totalWeeklyMinutes / 60).toFixed(1);
-    const avgDailyMinutes = Math.round(totalWeeklyMinutes / 7);
-
-    // Current day minutes
-    const dayMinutes = (parseInt(currentDay.primary?.durationMinutes, 10) || 60) +
-                       (parseInt(currentDay.secondary?.durationMinutes, 10) || 45) +
-                       (parseInt(currentDay.revision?.durationMinutes, 10) || 30);
-    const dayHours = (dayMinutes / 60).toFixed(1);
-
+    const blocks = Storage.getDaySchedule(this.currentDate);
+    const totalMinutes = blocks.reduce((sum, b) => sum + (parseInt(b.duration, 10) || 0), 0);
+    const doneCount = blocks.filter(b => b.status === 'done').length;
+    const isToday = this.currentDate === Storage.getTodayString();
     const routine = Storage.getRoutineSettings();
+    const subjectsList = Storage.getSubjects();
+    const defaultSubjectId = Storage.getDefaultSubjectId();
 
     let html = `
-      <!-- 1. Hero Header & Weekly Timetable Controls -->
+      <!-- 1. Hero Header -->
       <div class="schedule-hero-card card">
         <div class="schedule-hero-top">
           <div class="schedule-hero-title-group">
@@ -74,56 +237,56 @@ class ScheduleController {
             </div>
             <div>
               <div class="schedule-headline-row">
-                <h2>Weekly Timetable & Schedule Manager</h2>
-                <span class="badge-rotational-rhythm"><i data-lucide="sparkles"></i> Rotational Auto-Assigner Active</span>
+                <h2>Study Schedule</h2>
+                <span class="badge-rotational-rhythm"><i data-lucide="sparkles"></i> Free-Form Blocks</span>
               </div>
               <p class="schedule-hero-subtitle">
-                Set your repeating 7-day study timetable (Monday to Sunday). The rotational engine reads today's day of the week and automatically pulls the next uncompleted syllabus topics into your Today planner.
+                Build your own day: pick a date and add as many blocks as you like, each with its own subject, duration and topic.
+                Nothing is fixed — mix subjects freely and let "Pull next topic" bring in the next uncompleted subtopic.
               </p>
             </div>
           </div>
           <div class="schedule-hero-actions">
-            <button class="btn-schedule-action btn-apply-today" onclick="Schedule.applyWeeklyScheduleToToday()" title="Auto-Assign Today's blocks using current timetable">
-              <i data-lucide="sparkles"></i> <span>Auto-Assign to Today</span>
+            <button class="btn-schedule-action btn-apply-today" onclick="Schedule.fillDayTopics()" title="Give every empty block the next uncompleted topic from its subject">
+              <i data-lucide="sparkles"></i> <span>Auto-Fill Topics</span>
             </button>
-            <button class="btn-schedule-action btn-save-routine" onclick="Schedule.saveWeeklySchedule()" title="Save timetable to Supabase Cloud">
-              <i data-lucide="save"></i> <span>Save Timetable</span>
+            <button class="btn-schedule-action btn-save-routine" onclick="Schedule.saveSchedule()" title="Back up to Supabase Cloud">
+              <i data-lucide="save"></i> <span>Sync Now</span>
             </button>
-            <button class="btn-schedule-action btn-reset-defaults" onclick="Schedule.resetWeeklySchedule()" title="Reset to standard Commerce/CUET routine">
-              <i data-lucide="rotate-ccw"></i> <span>Reset</span>
+            <button class="btn-schedule-action btn-reset-defaults" onclick="Schedule.clearDay()" title="Remove every block from this day">
+              <i data-lucide="eraser"></i> <span>Clear Day</span>
             </button>
           </div>
         </div>
 
-        <!-- Metric Stat Chips -->
         <div class="schedule-stats-grid">
           <div class="schedule-stat-chip">
             <div class="stat-icon-wrap bg-emerald">
-              <i data-lucide="hourglass"></i>
+              <i data-lucide="layers"></i>
             </div>
             <div class="stat-meta">
-              <span class="stat-num">${totalWeeklyHours}h <span class="stat-unit">/ week</span></span>
-              <span class="stat-lbl">Weekly Target Focus (${totalWeeklyMinutes}m)</span>
+              <span class="stat-num">${blocks.length} <span class="stat-unit">block${blocks.length === 1 ? '' : 's'}</span></span>
+              <span class="stat-lbl">Planned for this day</span>
             </div>
           </div>
 
           <div class="schedule-stat-chip">
             <div class="stat-icon-wrap bg-blue">
-              <i data-lucide="calendar"></i>
+              <i data-lucide="hourglass"></i>
             </div>
             <div class="stat-meta">
-              <span class="stat-num">${dayMinutes}m <span class="stat-unit">(${dayHours}h)</span></span>
-              <span class="stat-lbl">${currentDay.name}'s Focus Target</span>
+              <span class="stat-num">${(totalMinutes / 60).toFixed(1)}h <span class="stat-unit">(${totalMinutes}m)</span></span>
+              <span class="stat-lbl">Study time planned</span>
             </div>
           </div>
 
           <div class="schedule-stat-chip">
             <div class="stat-icon-wrap bg-amber">
-              <i data-lucide="layers"></i>
+              <i data-lucide="check-circle-2"></i>
             </div>
             <div class="stat-meta">
-              <span class="stat-num">21 Blocks</span>
-              <span class="stat-lbl">3 Fixed Blocks &bull; 7 Days</span>
+              <span class="stat-num">${doneCount} / ${blocks.length}</span>
+              <span class="stat-lbl">Blocks completed</span>
             </div>
           </div>
 
@@ -139,136 +302,100 @@ class ScheduleController {
         </div>
       </div>
 
-      <!-- 2. 7-Day Day Selector Bar -->
+      <!-- 2. Date Navigation -->
       <div class="weekly-selector-card card">
-        <div class="weekly-selector-header">
-          <div class="title-with-icon">
-            <i data-lucide="calendar" class="text-primary"></i>
-            <h3>Select Day to Configure</h3>
+        <div class="planner-date-nav">
+          <button class="nav-arrow-btn" onclick="Schedule.goToPreviousDay()" title="Previous Day" aria-label="Previous Day">
+            <i data-lucide="chevron-left"></i>
+          </button>
+          <div class="date-display-wrapper">
+            <h2 class="current-date-title">${this.formatDateLabel(this.currentDate)}</h2>
+            <div class="date-controls">
+              <input type="date" class="date-picker-inline" value="${this.currentDate}" onchange="Schedule.setDate(this.value)" />
+              ${!isToday ? `<button class="btn-today-pill" onclick="Schedule.goToToday()">Jump to Today</button>` : `<span class="badge-live">Today</span>`}
+            </div>
           </div>
-          <span class="weekly-sync-indicator"><i data-lucide="check-circle-2"></i> Auto-repeats every week</span>
-        </div>
-
-        <div class="weekly-days-tabs" role="tablist">
-          ${daysList.map(dk => {
-            const d = weeklySchedule[dk] || Storage.getDefaultWeeklySchedule()[dk];
-            const isSelected = dk === currentDayKey;
-            const isToday = dk === todayDayKey;
-            const subjects = Storage.getSubjects();
-            const pCode = Storage.getSubject(d.primary?.subject)?.code || subjects[0]?.code || '';
-            const sCode = Storage.getSubject(d.secondary?.subject)?.code || subjects[1]?.code || '';
-            const rCode = Storage.getSubject(d.revision?.subject)?.code || subjects[2]?.code || '';
-            const shortName = d.name.slice(0, 3).toUpperCase();
-
-            return `
-              <button 
-                class="weekly-day-pill ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}" 
-                onclick="Schedule.selectDay('${dk}')"
-                role="tab"
-                aria-selected="${isSelected}"
-              >
-                <div class="pill-day-row">
-                  <span class="pill-day-name">${shortName}</span>
-                  ${isToday ? `<span class="pill-today-badge">TODAY</span>` : ''}
-                </div>
-                <div class="pill-subjects-preview">
-                  <span class="subj-tag-mini sub-${d.primary?.subject}">${pCode}</span>
-                  <span class="subj-tag-mini sub-${d.secondary?.subject}">${sCode}</span>
-                  <span class="subj-tag-mini sub-${d.revision?.subject}">${rCode}</span>
-                </div>
-              </button>
-            `;
-          }).join('')}
+          <button class="nav-arrow-btn" onclick="Schedule.goToNextDay()" title="Next Day" aria-label="Next Day">
+            <i data-lucide="chevron-right"></i>
+          </button>
         </div>
       </div>
 
-      <!-- 3. Current Day Configuration & Live Rotational Previews -->
+      <!-- 3. Add a Block -->
+      <div class="schedule-block-card card">
+        <div class="schedule-block-card-header">
+          <div class="block-header-left">
+            <span class="block-type-badge">
+              <i data-lucide="plus-circle"></i> New Block
+            </span>
+          </div>
+          <span class="block-header-purpose-tag">Subject &bull; Duration &bull; Topic</span>
+        </div>
+
+        <div class="schedule-block-card-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="new-block-subject"><i data-lucide="book"></i> Subject</label>
+              <select id="new-block-subject" class="form-control">
+                ${subjectsList.map(sub => `
+                  <option value="${sub.id}" ${defaultSubjectId === sub.id ? 'selected' : ''}>${sub.name} (${sub.code})</option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="new-block-duration"><i data-lucide="timer"></i> Duration (Minutes)</label>
+              <input type="number" id="new-block-duration" class="form-control" value="45" min="15" max="180" step="5">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="new-block-topic"><i data-lucide="align-left"></i> Topic (optional — you can pull one later)</label>
+            <input type="text" id="new-block-topic" class="form-control" placeholder="e.g. Admission of a Partner — sacrifice ratio">
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="new-block-start"><i data-lucide="clock"></i> Start Time (optional)</label>
+              <input type="time" id="new-block-start" class="form-control">
+            </div>
+            <div class="form-group form-group-action">
+              <label>&nbsp;</label>
+              <button class="btn-primary" onclick="Schedule.addBlock()">
+                <i data-lucide="plus"></i> Add Block
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Blocks for the selected day -->
       <div class="section-title-wrap">
         <div class="title-with-icon">
-          <i data-lucide="sliders" class="text-primary"></i>
-          <h3>${currentDay.name}'s Daily Study Blocks</h3>
+          <i data-lucide="layout-list" class="text-primary"></i>
+          <h3>${blocks.length} Block${blocks.length === 1 ? '' : 's'} on ${this.currentDate}</h3>
         </div>
         <p class="section-subtitle">
-          Configure the primary, secondary, and revision slots for <strong>${currentDay.name}</strong>. The rotational auto-assigner will pull the next active topics from the syllabus queue.
+          Edit any block inline — change its subject, topic or duration, or pull the next uncompleted topic straight from the syllabus.
         </p>
       </div>
+    `;
 
-      <div class="schedule-blocks-grid">
-        ${this.renderDaySlotCard(currentDayKey, 'primary', currentDay.primary, 'Core Numerical / Heavy Theory', '#4F8A68')}
-        ${this.renderDaySlotCard(currentDayKey, 'secondary', currentDay.secondary, 'Applied Concepts & Practice', '#2F6375')}
-        ${this.renderDaySlotCard(currentDayKey, 'revision', currentDay.revision, 'Recall, Drills & Formulas', '#6C3483')}
-      </div>
-
-      <!-- 4. Weekly Timetable Matrix Overview Table -->
-      <div class="weekly-matrix-card card">
-        <div class="card-section-header">
-          <div class="title-with-icon">
-            <i data-lucide="table" class="text-primary"></i>
-            <h3>Weekly Timetable Master Matrix</h3>
-          </div>
-          <span class="card-subtitle-tag">7-Day Study Rotation At A Glance</span>
+    if (blocks.length === 0) {
+      html += `
+        <div class="empty-block-card card">
+          <p>No blocks on this day yet. Add your first block above.</p>
         </div>
+      `;
+    } else {
+      html += `<div class="schedule-blocks-grid">`;
+      blocks.forEach(block => {
+        html += this.renderBlockCard(block, subjectsList);
+      });
+      html += `</div>`;
+    }
 
-        <div class="table-responsive">
-          <table class="weekly-matrix-table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Primary Block</th>
-                <th>Secondary Block</th>
-                <th>Revision Block</th>
-                <th>Total Time</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${daysList.map(dk => {
-                const d = weeklySchedule[dk] || Storage.getDefaultWeeklySchedule()[dk];
-                const isSelected = dk === currentDayKey;
-                const isToday = dk === todayDayKey;
-                const pSub = Storage.getSubjectName(d.primary?.subject) || d.primary?.subject || '';
-                const sSub = Storage.getSubjectName(d.secondary?.subject) || d.secondary?.subject || '';
-                const rSub = Storage.getSubjectName(d.revision?.subject) || d.revision?.subject || '';
-                const totalM = (parseInt(d.primary?.durationMinutes, 10) || 60) +
-                               (parseInt(d.secondary?.durationMinutes, 10) || 45) +
-                               (parseInt(d.revision?.durationMinutes, 10) || 30);
-
-                return `
-                  <tr class="matrix-row ${isSelected ? 'row-selected' : ''} ${isToday ? 'row-today' : ''}" onclick="Schedule.selectDay('${dk}')">
-                    <td class="col-day">
-                      <strong>${d.name}</strong>
-                      ${isToday ? `<span class="matrix-today-badge">Today</span>` : ''}
-                    </td>
-                    <td>
-                      <span class="matrix-sub-chip sub-${d.primary?.subject}">
-                        ${pSub} (${d.primary?.durationMinutes || 60}m)
-                      </span>
-                    </td>
-                    <td>
-                      <span class="matrix-sub-chip sub-${d.secondary?.subject}">
-                        ${sSub} (${d.secondary?.durationMinutes || 45}m)
-                      </span>
-                    </td>
-                    <td>
-                      <span class="matrix-sub-chip sub-${d.revision?.subject}">
-                        ${rSub} (${d.revision?.durationMinutes || 30}m)
-                      </span>
-                    </td>
-                    <td class="col-duration"><strong>${totalM}m</strong></td>
-                    <td class="col-action">
-                      <button class="btn-matrix-edit" onclick="event.stopPropagation(); Schedule.selectDay('${dk}')">
-                        ${isSelected ? 'Editing' : 'Edit'}
-                      </button>
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- 5. Routine & Habit Settings -->
+    html += `
+      <!-- 5. Study Pacing Settings -->
       <div class="routine-settings-card card">
         <div class="card-section-header">
           <div class="title-with-icon">
@@ -304,7 +431,7 @@ class ScheduleController {
           <label class="routine-toggle-item">
             <div class="toggle-meta">
               <strong>Auto Midnight Rollover Engine</strong>
-              <span>Automatically sweeps unfinished daily tasks into the Backlog Vault at 23:59 without breaking streak.</span>
+              <span>Automatically sweeps unfinished daily blocks into the Backlog Vault at 23:59 without breaking streak.</span>
             </div>
             <input type="checkbox" class="routine-checkbox" ${routine.autoMidnightRollover !== false ? 'checked' : ''} onchange="Schedule.updateRoutineSetting('autoMidnightRollover', this.checked)">
           </label>
@@ -312,7 +439,7 @@ class ScheduleController {
           <label class="routine-toggle-item">
             <div class="toggle-meta">
               <strong>Study Timer Bell & Chime</strong>
-              <span>Play soft audio chime alert when focus block timer countdown completes.</span>
+              <span>Play soft audio chime alert when a focus block timer countdown completes.</span>
             </div>
             <input type="checkbox" class="routine-checkbox" ${routine.reminderAlerts !== false ? 'checked' : ''} onchange="Schedule.updateRoutineSetting('reminderAlerts', this.checked)">
           </label>
@@ -324,12 +451,12 @@ class ScheduleController {
         <div class="cloud-bar-left">
           <i data-lucide="shield-check" class="text-emerald"></i>
           <div>
-            <strong>Weekly timetable & rotational queues are auto-synced</strong>
-            <p>Every subject assignment and duration change is saved locally and backed up to Supabase Cloud.</p>
+            <strong>Your schedule is stored locally and backed up to Supabase Cloud</strong>
+            <p>Every block you add or edit is saved on this device instantly and synced in the background.</p>
           </div>
         </div>
         <div class="cloud-bar-right">
-          <button class="btn-primary" onclick="Storage.pushToCloud(); App.showToast('Weekly routine synced with Supabase Cloud!', 'success');">
+          <button class="btn-primary" onclick="Schedule.saveSchedule()">
             <i data-lucide="refresh-cw"></i> Sync Now
           </button>
         </div>
@@ -343,87 +470,86 @@ class ScheduleController {
     }
   }
 
-  renderDaySlotCard(dayKey, slotId, slot, defaultBadgeText, accentColor) {
-    const subjectsList = Storage.getSubjects().map(sub => ({
-      id: sub.id,
-      name: `${sub.name} (${sub.code})`
-    }));
-
-    const fallbackIndex = slotId === 'primary' ? 0 : slotId === 'secondary' ? 1 : 2;
-    const currentSubjectId = slot?.subject || Storage.getRotationalSubjectId(fallbackIndex);
-    const durationMins = parseInt(slot?.durationMinutes, 10) || (slotId === 'primary' ? 60 : slotId === 'secondary' ? 45 : 30);
+  renderBlockCard(block, subjectsList) {
+    const duration = parseInt(block.duration, 10) || 45;
+    const subjectMeta = Storage.getSubject(block.subjectId);
     const presets = [30, 45, 60, 75, 90];
-
-    // Live preview of what the Rotational Auto-Assigner will pull for this block
-    const nextTopic = Storage.getNextUncompletedTopic(currentSubjectId);
+    const statusBadge = block.status === 'done'
+      ? `<span class="task-status-badge done"><i data-lucide="check-circle-2"></i> Completed</span>`
+      : (block.autoAssigned ? `<span class="task-status-badge"><i data-lucide="sparkles"></i> Pulled from syllabus</span>` : '');
 
     return `
-      <div class="schedule-block-card card block-border-${slotId}">
-        <!-- Header -->
+      <div class="schedule-block-card card">
         <div class="schedule-block-card-header">
           <div class="block-header-left">
-            <span class="block-type-badge ${slotId}">
-              <i data-lucide="${slotId === 'primary' ? 'zap' : slotId === 'secondary' ? 'book-open' : 'repeat'}"></i>
-              ${slot?.title || (slotId === 'primary' ? 'Primary Block' : slotId === 'secondary' ? 'Secondary Block' : 'Revision Block')}
+            <span class="block-type-badge">
+              <i data-lucide="${subjectMeta?.icon || 'book'}"></i> ${Storage.getSubjectName(block.subjectId) || 'Subject'}
             </span>
-            <span class="block-duration-pill">${durationMins} mins</span>
+            <span class="block-duration-pill">${duration} mins</span>
+            ${block.startTime ? `<span class="block-duration-pill">${this.formatTimeDisplay(block.startTime)}${block.endTime ? ` – ${this.formatTimeDisplay(block.endTime)}` : ''}</span>` : ''}
+            ${statusBadge}
           </div>
-          <span class="block-header-purpose-tag">${defaultBadgeText}</span>
+          <button class="btn-block-delete" onclick="Schedule.removeBlock('${block.id}')" title="Delete block">
+            <i data-lucide="trash-2"></i>
+          </button>
         </div>
 
         <div class="schedule-block-card-body">
-          <!-- Subject Select Dropdown -->
           <div class="form-group">
-            <label for="select-sub-${dayKey}-${slotId}"><i data-lucide="book"></i> Scheduled Subject</label>
-            <select id="select-sub-${dayKey}-${slotId}" class="form-control" onchange="Schedule.updateDaySlotSubject('${dayKey}', '${slotId}', this.value)">
-              ${subjectsList.map(s => `
-                <option value="${s.id}" ${currentSubjectId === s.id ? 'selected' : ''}>
-                  ${s.name}
-                </option>
+            <label for="blk-sub-${block.id}"><i data-lucide="book"></i> Subject</label>
+            <select id="blk-sub-${block.id}" class="form-control" onchange="Schedule.updateBlockSubject('${block.id}', this.value)">
+              ${subjectsList.map(sub => `
+                <option value="${sub.id}" ${block.subjectId === sub.id ? 'selected' : ''}>${sub.name} (${sub.code})</option>
               `).join('')}
             </select>
           </div>
 
-          <!-- Live Rotational Auto-Assign Preview Box -->
-          <div class="next-up-preview">
-            <div class="next-up-header">
-              <i data-lucide="sparkles" class="text-emerald"></i>
-              <span>Next in Syllabus Queue (Auto-Assign):</span>
+          <div class="form-group">
+            <label for="blk-topic-${block.id}"><i data-lucide="align-left"></i> Topic</label>
+            <div class="end-time-wrapper">
+              <input
+                type="text"
+                id="blk-topic-${block.id}"
+                class="form-control"
+                value="${this.escapeHtml(block.topic)}"
+                placeholder="What will you study in this block?"
+                onchange="Schedule.updateBlockTopic('${block.id}', this.value)"
+              >
+              <button type="button" class="btn-auto-calc" onclick="Schedule.pullNextTopic('${block.id}')" title="Pull the next uncompleted topic from this subject's syllabus">
+                <i data-lucide="sparkles"></i>
+              </button>
             </div>
-            <div class="next-up-title">${nextTopic?.title || 'No pending subtopic found'}</div>
-            <div class="next-up-unit">${nextTopic?.unitTitle || ''}</div>
+            ${block.unitTitle ? `<p class="parser-summary">${this.escapeHtml(block.unitTitle)}</p>` : ''}
           </div>
 
-          <!-- Duration Stepper & Presets -->
           <div class="form-group duration-form-group">
-            <label><i data-lucide="timer"></i> Slot Duration (Minutes)</label>
+            <label><i data-lucide="timer"></i> Duration (Minutes)</label>
             <div class="duration-controls-row">
               <div class="duration-stepper">
-                <button type="button" class="btn-stepper" onclick="Schedule.adjustDaySlotDuration('${dayKey}', '${slotId}', -5)" title="Decrease 5 minutes">
+                <button type="button" class="btn-stepper" onclick="Schedule.adjustBlockDuration('${block.id}', -5)" title="Decrease 5 minutes">
                   <i data-lucide="minus"></i>
                 </button>
-                <input 
-                  type="number" 
-                  id="input-dur-${dayKey}-${slotId}" 
-                  class="form-control stepper-input" 
-                  value="${durationMins}" 
-                  min="15" 
-                  max="180" 
-                  step="5" 
-                  onchange="Schedule.updateDaySlotDuration('${dayKey}', '${slotId}', this.value)"
+                <input
+                  type="number"
+                  id="blk-dur-${block.id}"
+                  class="form-control stepper-input"
+                  value="${duration}"
+                  min="15"
+                  max="180"
+                  step="5"
+                  onchange="Schedule.updateBlockDuration('${block.id}', this.value)"
                 >
-                <button type="button" class="btn-stepper" onclick="Schedule.adjustDaySlotDuration('${dayKey}', '${slotId}', 5)" title="Increase 5 minutes">
+                <button type="button" class="btn-stepper" onclick="Schedule.adjustBlockDuration('${block.id}', 5)" title="Increase 5 minutes">
                   <i data-lucide="plus"></i>
                 </button>
               </div>
 
-              <!-- Presets -->
               <div class="duration-presets-group">
                 ${presets.map(mins => `
-                  <button 
-                    type="button" 
-                    class="btn-preset ${durationMins === mins ? 'active' : ''}" 
-                    onclick="Schedule.updateDaySlotDuration('${dayKey}', '${slotId}', ${mins})"
+                  <button
+                    type="button"
+                    class="btn-preset ${duration === mins ? 'active' : ''}"
+                    onclick="Schedule.updateBlockDuration('${block.id}', ${mins})"
                   >
                     ${mins}m
                   </button>
@@ -432,45 +558,14 @@ class ScheduleController {
             </div>
           </div>
 
-          <!-- Time Window -->
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="time-start-${dayKey}-${slotId}"><i data-lucide="clock"></i> Start Time</label>
-              <input 
-                type="time" 
-                id="time-start-${dayKey}-${slotId}" 
-                class="form-control" 
-                value="${slot?.startTime || '07:00'}" 
-                onchange="Schedule.updateDaySlotTime('${dayKey}', '${slotId}', 'startTime', this.value)"
-              >
-            </div>
-            <div class="form-group">
-              <label for="time-end-${dayKey}-${slotId}"><i data-lucide="check-circle"></i> End Time</label>
-              <div class="end-time-wrapper">
-                <input 
-                  type="time" 
-                  id="time-end-${dayKey}-${slotId}" 
-                  class="form-control" 
-                  value="${slot?.endTime || '08:00'}" 
-                  onchange="Schedule.updateDaySlotTime('${dayKey}', '${slotId}', 'endTime', this.value)"
-                >
-                <button type="button" class="btn-auto-calc" onclick="Schedule.autoCalcDaySlotEndTime('${dayKey}', '${slotId}')" title="Auto-calculate end time from duration">
-                  <i data-lucide="wand-2"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Study Strategy Note -->
           <div class="form-group">
-            <label for="desc-${dayKey}-${slotId}"><i data-lucide="align-left"></i> Study Objective</label>
-            <input 
-              type="text" 
-              id="desc-${dayKey}-${slotId}" 
-              class="form-control" 
-              value="${this.escapeHtml(slot?.description || '')}" 
-              placeholder="Session intent..." 
-              onchange="Schedule.updateDaySlotDescription('${dayKey}', '${slotId}', this.value)"
+            <label for="blk-start-${block.id}"><i data-lucide="clock"></i> Start Time</label>
+            <input
+              type="time"
+              id="blk-start-${block.id}"
+              class="form-control"
+              value="${block.startTime || ''}"
+              onchange="Schedule.updateBlockStartTime('${block.id}', this.value)"
             >
           </div>
         </div>
@@ -478,90 +573,7 @@ class ScheduleController {
     `;
   }
 
-  escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
-
-  formatTimeDisplay(timeStr) {
-    if (!timeStr) return '--:--';
-    const parts = timeStr.split(':');
-    if (parts.length < 2) return timeStr;
-    let hour = parseInt(parts[0], 10);
-    const minute = parts[1];
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    hour = hour % 12;
-    if (hour === 0) hour = 12;
-    return `${hour}:${minute} ${ampm}`;
-  }
-
-  calcEndTime(startTimeStr, durationMinutes) {
-    const parts = (startTimeStr || '07:00').split(':');
-    let h = parseInt(parts[0], 10) || 0;
-    let m = parseInt(parts[1], 10) || 0;
-    let totalM = h * 60 + m + (parseInt(durationMinutes, 10) || 0);
-    let endH = Math.floor(totalM / 60) % 24;
-    let endM = totalM % 60;
-    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-  }
-
-  updateDaySlotSubject(dayKey, slotId, subjectId) {
-    Storage.updateWeeklyDaySlot(dayKey, slotId, { subject: subjectId });
-    this.render();
-    if (window.App) {
-      const subName = Storage.getSubjectName(subjectId) || subjectId;
-      window.App.showToast(`Updated ${dayKey} ${slotId} block to ${subName}`, 'success');
-    }
-  }
-
-  updateDaySlotDuration(dayKey, slotId, duration) {
-    const mins = Math.max(15, Math.min(180, parseInt(duration, 10) || 45));
-    const weeklySchedule = Storage.getWeeklySchedule();
-    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
-    const startTime = currentSlot.startTime || '07:00';
-    const endTime = this.calcEndTime(startTime, mins);
-
-    Storage.updateWeeklyDaySlot(dayKey, slotId, {
-      durationMinutes: mins,
-      endTime: endTime
-    });
-    this.render();
-    if (window.App) {
-      window.App.showToast(`Updated ${slotId} block to ${mins} mins`, 'success');
-    }
-  }
-
-  adjustDaySlotDuration(dayKey, slotId, delta) {
-    const weeklySchedule = Storage.getWeeklySchedule();
-    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
-    const cur = parseInt(currentSlot.durationMinutes, 10) || 45;
-    this.updateDaySlotDuration(dayKey, slotId, cur + delta);
-  }
-
-  updateDaySlotTime(dayKey, slotId, field, value) {
-    const weeklySchedule = Storage.getWeeklySchedule();
-    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
-    const updates = { [field]: value };
-    if (field === 'startTime' && currentSlot.durationMinutes) {
-      updates.endTime = this.calcEndTime(value, currentSlot.durationMinutes);
-    }
-    Storage.updateWeeklyDaySlot(dayKey, slotId, updates);
-    this.render();
-  }
-
-  autoCalcDaySlotEndTime(dayKey, slotId) {
-    const weeklySchedule = Storage.getWeeklySchedule();
-    const currentSlot = weeklySchedule[dayKey]?.[slotId] || {};
-    const calcEnd = this.calcEndTime(currentSlot.startTime || '07:00', currentSlot.durationMinutes || 45);
-    this.updateDaySlotTime(dayKey, slotId, 'endTime', calcEnd);
-    if (window.App) {
-      window.App.showToast(`End time auto-calculated: ${this.formatTimeDisplay(calcEnd)}`, 'info');
-    }
-  }
-
-  updateDaySlotDescription(dayKey, slotId, desc) {
-    Storage.updateWeeklyDaySlot(dayKey, slotId, { description: desc });
-  }
+  /* ------------------------------- settings -------------------------------- */
 
   updateRoutineSetting(key, value) {
     Storage.updateRoutineSettings({ [key]: value });
@@ -570,30 +582,10 @@ class ScheduleController {
     }
   }
 
-  saveWeeklySchedule() {
+  saveSchedule() {
     Storage.pushToCloud();
     if (window.App) {
-      window.App.showToast('Weekly timetable saved & synced with cloud!', 'success');
-    }
-  }
-
-  applyWeeklyScheduleToToday() {
-    const today = Storage.getTodayString();
-    Storage.autoAssignDate(today, true);
-    if (window.App) {
-      const dayName = Storage.getDayOfWeek(today).toUpperCase();
-      window.App.showToast(`Auto-assigned Today's blocks from ${dayName} timetable!`, 'success');
-      window.App.navigateToTab('planner');
-    }
-  }
-
-  resetWeeklySchedule() {
-    if (confirm('Reset your 7-day timetable to standard recommended Commerce + CUET study rhythm?')) {
-      Storage.resetWeeklyScheduleDefaults();
-      this.render();
-      if (window.App) {
-        window.App.showToast('Weekly timetable reset to recommended defaults!', 'info');
-      }
+      window.App.showToast('Schedule saved & synced with cloud!', 'success');
     }
   }
 

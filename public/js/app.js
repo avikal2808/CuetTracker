@@ -419,28 +419,16 @@ CREATE POLICY "Allow anon update" ON public.student_progress FOR UPDATE TO anon 
     }
 
     const state = Storage.getState();
-    if (!state.planner[dateStr]) {
-      state.planner[dateStr] = Storage.generateTasksForDate(dateStr);
-    }
-
-    const tasks = state.planner[dateStr];
+    const tasks = Storage.ensureDaySchedule(dateStr);
 
     if (hiddenTaskId.startsWith('new_')) {
-      const blockId = hiddenTaskId.replace('new_', '');
-      tasks.push({
-        id: `task_${Date.now()}`,
-        blockId: blockId,
-        blockTitle: `${blockId.toUpperCase()} Block (${durationInput}m)`,
-        duration: durationInput,
-        subject: Storage.getSubjectName(subjectSelect) || subjectSelect,
+      tasks.push(Storage.buildBlock(dateStr, {
         subjectId: subjectSelect,
         topic: titleInput,
         unitTitle: 'Custom Study Plan',
         subtopicId: hiddenSubtopicId,
-        status: 'pending',
-        scheduledDate: dateStr,
-        completedAt: null
-      });
+        duration: durationInput
+      }));
     } else {
       const target = tasks.find(t => t.id === hiddenTaskId);
       if (target) {

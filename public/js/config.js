@@ -23,35 +23,6 @@ const CONFIG = {
     secondaryText: '#6F776F',
     border: '#E1E5DF'
   },
-  timeBlocks: [
-    {
-      id: 'primary',
-      title: 'Primary Block',
-      durationMinutes: 60,
-      badge: 'Core Focus (60m)',
-      icon: 'zap',
-      description: 'Deep dive, heavy numericals or critical concepts (Accountancy / Macroeconomics)',
-      defaultSubject: 'Accountancy'
-    },
-    {
-      id: 'secondary',
-      title: 'Secondary Block',
-      durationMinutes: 45,
-      badge: 'Application (45m)',
-      icon: 'book-open',
-      description: 'Case studies, conceptual business theory or applied economics',
-      defaultSubject: 'Business Studies'
-    },
-    {
-      id: 'revision',
-      title: 'Revision Block',
-      durationMinutes: 30,
-      badge: 'Recall & Speed (30m)',
-      icon: 'repeat',
-      description: 'MCQ drill, formulas, vocabulary, or General Test current affairs',
-      defaultSubject: 'Economics'
-    }
-  ],
   subjects: {
     accountancy: {
       id: 'accountancy',

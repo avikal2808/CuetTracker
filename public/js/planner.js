@@ -24,8 +24,8 @@ class PlannerController {
   setCurrentDate(dateStr) {
     this.currentDate = dateStr;
     const state = Storage.getState();
-    if (!state.planner[dateStr]) {
-      state.planner[dateStr] = Storage.generateTasksForDate(dateStr);
+    if (!Array.isArray(state.planner[dateStr])) {
+      state.planner[dateStr] = Storage.ensureDaySchedule(dateStr);
       Storage.saveLocally(state);
     }
     this.render();
@@ -100,7 +100,7 @@ class PlannerController {
     }
 
     if (window.App) {
-      window.App.showToast(`Completed ${task.blockTitle}! Great progress!`, 'success');
+      window.App.showToast(`Completed "${task.topic}"! Great progress!`, 'success');
     }
   }
 
@@ -118,8 +118,8 @@ class PlannerController {
     const tomorrowStr = d.toISOString().split('T')[0];
 
     // Ensure tomorrow exists
-    if (!state.planner[tomorrowStr]) {
-      state.planner[tomorrowStr] = Storage.generateTasksForDate(tomorrowStr);
+    if (!Array.isArray(state.planner[tomorrowStr])) {
+      state.planner[tomorrowStr] = Storage.ensureDaySchedule(tomorrowStr);
     }
 
     // Append or replace next day
@@ -253,13 +253,7 @@ class PlannerController {
     // Rollover notice check
     const backlogCount = (state.backlog || []).filter(b => b.status === 'pending').length;
 
-    const dayOfWeek = Storage.getDayOfWeek(this.currentDate);
-    const weeklySchedule = Storage.getWeeklySchedule();
-    const dayConfig = weeklySchedule[dayOfWeek] || Storage.getDefaultWeeklySchedule()[dayOfWeek];
-    const subjects = Storage.getSubjects();
-    const pCode = Storage.getSubject(dayConfig?.primary?.subject)?.code || subjects[0]?.code || '';
-    const sCode = Storage.getSubject(dayConfig?.secondary?.subject)?.code || subjects[1]?.code || '';
-    const rCode = Storage.getSubject(dayConfig?.revision?.subject)?.code || subjects[2]?.code || '';
+    const daySubjectIds = [...new Set(tasks.map(t => t.subjectId).filter(Boolean))];
 
     let html = `
       <div class="planner-header-card card">
@@ -279,19 +273,24 @@ class PlannerController {
           </button>
         </div>
 
-        <!-- Weekly Rotational Routine Quick Bar -->
+        <!-- Day Blocks Quick Bar -->
         <div class="planner-routine-bar">
           <div class="routine-bar-meta">
-            <span class="routine-meta-badge"><i data-lucide="sparkles"></i> ${dayConfig.name}'s Rotation</span>
+            <span class="routine-meta-badge"><i data-lucide="layout-list"></i> ${tasks.length} block${tasks.length === 1 ? '' : 's'} &bull; ${totalMinutesPlanned}m</span>
             <span class="routine-meta-subs">
-              <span class="subj-tag-mini sub-${dayConfig.primary?.subject}">1: ${pCode}</span>
-              <span class="subj-tag-mini sub-${dayConfig.secondary?.subject}">2: ${sCode}</span>
-              <span class="subj-tag-mini sub-${dayConfig.revision?.subject}">Rev: ${rCode}</span>
+              ${daySubjectIds.length > 0
+                ? daySubjectIds.map(id => `<span class="subj-tag-mini sub-${id}">${Storage.getSubject(id)?.code || Storage.getSubjectName(id)}</span>`).join('')
+                : `<span class="routine-meta-hint">No blocks planned yet</span>`}
             </span>
           </div>
-          <button class="btn-auto-assign-today" onclick="Planner.autoAssignToday()" title="Auto-Assign or refresh next active syllabus topics from ${dayConfig.name}'s timetable">
-            <i data-lucide="sparkles"></i> <span>Auto-Assign Routine</span>
-          </button>
+          <div class="routine-bar-actions">
+            <button class="btn-auto-assign-today" onclick="Planner.fillDayTopics()" title="Give every empty block the next uncompleted topic from its subject">
+              <i data-lucide="sparkles"></i> <span>Auto-Fill Topics</span>
+            </button>
+            <button class="btn-add-topic" onclick="Planner.openChangeTopicModal('new_block')">
+              <i data-lucide="plus"></i> Add Block
+            </button>
+          </div>
         </div>
 
         <div class="planner-metrics-bar">
@@ -366,108 +365,106 @@ class PlannerController {
       `;
     }
 
-    // Fixed Time Blocks list (dynamically tuned from Schedule settings)
+    // Free-form blocks for the selected date
     html += `<div class="blocks-stack">`;
 
-    const activeBlocks = Storage.getTimeBlocks();
-    activeBlocks.forEach((blockDef) => {
-      // Find tasks matching this block
-      const blockTasks = tasks.filter(t => t.blockId === blockDef.id);
-      const displayBadge = blockDef.badge || `${blockDef.title} (${blockDef.durationMinutes}m)`;
-      
+    if (tasks.length === 0) {
+      html += `
+        <div class="empty-block-card card">
+          <p>No study blocks planned for this day yet.</p>
+          <button class="btn-add-topic" onclick="Planner.openChangeTopicModal('new_block')">
+            <i data-lucide="plus"></i> Add Your First Block
+          </button>
+        </div>
+      `;
+    }
+
+    tasks.forEach(task => {
+      const isDone = task.status === 'done';
+      const isRescheduled = task.status === 'rescheduled';
+      const isRolledOver = task.status === 'rolled_over';
+      const isTimerActiveForThis = this.timer.activeTaskId === task.id;
+      const duration = task.duration || 45;
+      const subjectMeta = Storage.getSubject(task.subjectId);
+      const timeLabel = task.startTime
+        ? `${this.formatClock(task.startTime)}${task.endTime ? ` – ${this.formatClock(task.endTime)}` : ''}`
+        : 'Unscheduled';
+
+      let statusTag = '';
+      if (isDone) {
+        statusTag = `<span class="task-status-badge done"><i data-lucide="check-circle-2"></i> Completed</span>`;
+      } else if (isRescheduled) {
+        statusTag = `<span class="task-status-badge rescheduled"><i data-lucide="calendar"></i> Rescheduled</span>`;
+      } else if (isRolledOver) {
+        statusTag = `<span class="task-status-badge rollover"><i data-lucide="archive"></i> In Backlog</span>`;
+      }
+
       html += `
         <div class="block-section">
           <div class="block-section-header">
             <div class="block-title-group">
-              <span class="block-type-badge ${blockDef.id}">
-                <i data-lucide="${blockDef.icon || 'clock'}"></i> ${displayBadge}
+              <span class="block-type-badge">
+                <i data-lucide="${subjectMeta?.icon || 'book'}"></i> ${task.subject || 'Subject'} &bull; ${duration}m
               </span>
-              <span class="block-type-desc">${blockDef.description || ''}</span>
+              <span class="block-type-desc">${timeLabel}</span>
             </div>
-          </div>
-      `;
-
-      if (blockTasks.length === 0) {
-        html += `
-          <div class="empty-block-card card">
-            <p>No topic scheduled for this block.</p>
-            <button class="btn-add-topic" onclick="Planner.openChangeTopicModal('new_${blockDef.id}')">
-              <i data-lucide="plus"></i> Assign Topic from Queue
+            <button class="btn-task-icon-opt" onclick="Planner.deleteTask('${task.id}')" title="Remove block">
+              <i data-lucide="trash-2"></i>
             </button>
           </div>
-        `;
-      } else {
-        blockTasks.forEach(task => {
-          const isDone = task.status === 'done';
-          const isRescheduled = task.status === 'rescheduled';
-          const isRolledOver = task.status === 'rolled_over';
-          const isTimerActiveForThis = this.timer.activeTaskId === task.id;
 
-          let statusTag = '';
-          if (isDone) {
-            statusTag = `<span class="task-status-badge done"><i data-lucide="check-circle-2"></i> Completed</span>`;
-          } else if (isRescheduled) {
-            statusTag = `<span class="task-status-badge rescheduled"><i data-lucide="calendar"></i> Rescheduled</span>`;
-          } else if (isRolledOver) {
-            statusTag = `<span class="task-status-badge rollover"><i data-lucide="archive"></i> In Backlog</span>`;
-          }
+          <div class="task-block-card card ${isDone ? 'is-done' : ''} ${isTimerActiveForThis ? 'timer-active-card' : ''}">
+            <div class="task-card-main">
+              <div class="task-card-header">
+                <span class="subject-tag ${task.subjectId}">
+                  ${task.subject}
+                </span>
+                ${task.unitTitle ? `<span class="unit-subtitle">${task.unitTitle}</span>` : ''}
+                ${task.autoAssigned ? `<span class="badge-auto-assigned"><i data-lucide="sparkles"></i> Auto-Assigned</span>` : ''}
+                ${statusTag}
+              </div>
 
-          html += `
-            <div class="task-block-card card ${isDone ? 'is-done' : ''} ${isTimerActiveForThis ? 'timer-active-card' : ''}">
-              <div class="task-card-main">
-                <div class="task-card-header">
-                  <span class="subject-tag ${task.subjectId}">
-                    ${task.subject}
-                  </span>
-                  ${task.unitTitle ? `<span class="unit-subtitle">${task.unitTitle}</span>` : ''}
-                  ${task.autoAssigned ? `<span class="badge-auto-assigned"><i data-lucide="sparkles"></i> Auto-Assigned</span>` : ''}
-                  ${statusTag}
-                </div>
+              <h3 class="task-topic-title">${task.topic || 'No topic set yet'}</h3>
 
-                <h3 class="task-topic-title">${task.topic}</h3>
+              ${task.notes ? `<p class="task-note-text"><i data-lucide="info"></i> ${task.notes}</p>` : ''}
 
-                ${task.notes ? `<p class="task-note-text"><i data-lucide="info"></i> ${task.notes}</p>` : ''}
-
-                <div class="task-card-actions">
-                  ${!isDone && !isRescheduled && !isRolledOver ? `
-                    <button class="btn-task-action btn-done" onclick="Planner.markTaskDone('${task.id}')">
-                      <i data-lucide="check"></i> Done
-                    </button>
-                    <button class="btn-task-action btn-reschedule" onclick="Planner.rescheduleTask('${task.id}')">
-                      <i data-lucide="clock"></i> Reschedule
-                    </button>
-                    ${(!task.subtopicId || task.topic === 'Add a topic from the queue') ? `
-                      <button class="btn-task-action btn-auto-pull" onclick="Planner.autoAssignSlot('${task.id}', '${task.subjectId}')" title="Auto-pull next uncompleted topic from ${task.subject} queue">
-                        <i data-lucide="sparkles"></i> Pull Topic
-                      </button>
-                    ` : ''}
-                    <button class="btn-task-action btn-timer-start" onclick="Planner.startFocusTimer('${task.id}', ${task.duration || blockDef.durationMinutes}, '${task.topic.replace(/'/g, "\\'")}')">
-                      <i data-lucide="play"></i> Focus (${task.duration || blockDef.durationMinutes}m)
-                    </button>
-                    <button class="btn-task-icon-opt" onclick="Planner.openChangeTopicModal('${task.id}')" title="Change topic">
-                      <i data-lucide="edit-3"></i>
+              <div class="task-card-actions">
+                ${!isDone && !isRescheduled && !isRolledOver ? `
+                  <button class="btn-task-action btn-done" onclick="Planner.markTaskDone('${task.id}')">
+                    <i data-lucide="check"></i> Done
+                  </button>
+                  <button class="btn-task-action btn-reschedule" onclick="Planner.rescheduleTask('${task.id}')">
+                    <i data-lucide="clock"></i> Reschedule
+                  </button>
+                  ${!task.subtopicId ? `
+                    <button class="btn-task-action btn-auto-pull" onclick="Planner.autoAssignSlot('${task.id}', '${task.subjectId}')" title="Pull the next uncompleted topic from ${task.subject}'s syllabus">
+                      <i data-lucide="sparkles"></i> Pull Topic
                     </button>
                   ` : ''}
+                  <button class="btn-task-action btn-timer-start" onclick="Planner.startFocusTimer('${task.id}', ${duration}, '${(task.topic || '').replace(/'/g, "\\'")}')">
+                    <i data-lucide="play"></i> Focus (${duration}m)
+                  </button>
+                  <button class="btn-task-icon-opt" onclick="Planner.openChangeTopicModal('${task.id}')" title="Change topic">
+                    <i data-lucide="edit-3"></i>
+                  </button>
+                ` : ''}
 
-                  ${isDone ? `
-                    <div class="task-completed-info">
-                      <i data-lucide="check-check"></i> Finished at ${new Date(task.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  ` : ''}
+                ${isDone ? `
+                  <div class="task-completed-info">
+                    <i data-lucide="check-check"></i> Finished at ${new Date(task.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                ` : ''}
 
-                  ${isRescheduled ? `
-                    <div class="task-rescheduled-info">
-                      Moved to tomorrow's queue
-                    </div>
-                  ` : ''}
-                </div>
+                ${isRescheduled ? `
+                  <div class="task-rescheduled-info">
+                    Moved to tomorrow's queue
+                  </div>
+                ` : ''}
               </div>
             </div>
-          `;
-        });
-      }
-
-      html += `</div>`; // Close block-section
+          </div>
+        </div>
+      `;
     });
 
     html += `</div>`; // Close blocks-stack
@@ -480,18 +477,43 @@ class PlannerController {
     }
   }
 
-  autoAssignToday() {
-    Storage.autoAssignDate(this.currentDate, true);
-    if (window.confetti) {
+  fillDayTopics() {
+    const filled = Storage.fillDayTopics(this.currentDate, false);
+    if (filled > 0 && window.confetti) {
       window.confetti({ particleCount: 40, spread: 55, colors: ['#4F8A68', '#4F9D69', '#35634A'] });
     }
-    const dayOfWeek = Storage.getDayOfWeek(this.currentDate);
-    const weeklySchedule = Storage.getWeeklySchedule();
-    const dayName = weeklySchedule[dayOfWeek]?.name || 'Today';
     if (window.App) {
-      window.App.showToast(`Auto-assigned next active topics from ${dayName}'s schedule!`, 'success');
+      window.App.showToast(
+        filled > 0 ? `Pulled ${filled} topic${filled > 1 ? 's' : ''} from your syllabus queues!` : 'Every block already has a topic.',
+        filled > 0 ? 'success' : 'info'
+      );
     }
     this.render();
+  }
+
+  deleteTask(taskId) {
+    const task = (Storage.getDaySchedule(this.currentDate) || []).find(t => t.id === taskId);
+    if (!task) return;
+    if (!confirm(`Remove "${task.topic || 'this block'}" from ${this.currentDate}?`)) return;
+
+    Storage.removeScheduleBlock(this.currentDate, taskId);
+    if (this.timer.activeTaskId === taskId) {
+      this.resetTimer();
+    }
+    if (window.App) {
+      window.App.showToast('Block removed from the schedule.', 'info');
+    }
+  }
+
+  formatClock(timeStr) {
+    if (!timeStr) return '';
+    const parts = String(timeStr).split(':');
+    const h = parseInt(parts[0], 10);
+    if (Number.isNaN(h)) return timeStr;
+    const m = parseInt(parts[1], 10) || 0;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${ampm}`;
   }
 
   autoAssignSlot(taskId, subjectId) {

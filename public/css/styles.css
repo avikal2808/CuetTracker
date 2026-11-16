@@ -3463,6 +3463,54 @@ p {
   color: var(--secondary-text);
 }
 
+.btn-block-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--secondary-text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-block-delete:hover {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.btn-block-delete i {
+  width: 15px;
+  height: 15px;
+}
+
+.form-group-action {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.form-group-action .btn-primary {
+  width: 100%;
+}
+
+.routine-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.routine-meta-hint {
+  font-size: 11px;
+  color: var(--secondary-text);
+  font-style: italic;
+}
+
 .schedule-block-card-body {
   display: flex;
   flex-direction: column;

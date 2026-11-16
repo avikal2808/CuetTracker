@@ -63,24 +63,23 @@ class BacklogController {
     if (!item) return;
 
     const today = Storage.getTodayString();
-    if (!state.planner[today]) {
-      state.planner[today] = Storage.generateTasksForDate(today);
-    }
+    Storage.ensureDaySchedule(today);
 
-    // Append to today's planner
+    // Append to today's schedule as a free-form block
     state.planner[today].push({
-      id: `task_from_bl_${Date.now()}`,
-      blockId: 'secondary',
-      blockTitle: `${item.blockTitle || 'Study Block'} (Rescheduled)`,
-      duration: item.duration || 45,
-      subject: item.subject,
+      id: Storage.newBlockId(),
       subjectId: item.subjectId,
+      subject: item.subject,
       topic: item.topic,
       unitTitle: item.unitTitle || 'From Backlog Vault',
       subtopicId: item.subtopicId || null,
+      duration: item.duration || 45,
+      startTime: '',
+      endTime: '',
       status: 'pending',
       scheduledDate: today,
       completedAt: null,
+      autoAssigned: false,
       notes: `Restored from Backlog (originally ${item.originalDate})`
     });
 

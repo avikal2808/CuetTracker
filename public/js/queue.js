@@ -63,13 +63,10 @@ class QueueController {
   queueTopicForToday(subtopic, subjectId, unitTitle) {
     const today = Storage.getTodayString();
     const state = Storage.getState();
-    if (!state.planner[today]) {
-      state.planner[today] = Storage.generateTasksForDate(today);
-    }
+    const tasks = Storage.ensureDaySchedule(today);
 
-    // Find first unassigned pending slot (no subtopicId or default prompt text)
-    const tasks = state.planner[today];
-    let targetTask = tasks.find(t => t.status === 'pending' && (!t.subtopicId || t.topic === 'Add a topic from the queue'));
+    // Find first unassigned pending block
+    let targetTask = tasks.find(t => t.status === 'pending' && !t.subtopicId);
 
     // If none unassigned, find by matching subjectId
     if (!targetTask) {
@@ -83,22 +80,17 @@ class QueueController {
       targetTask.unitTitle = unitTitle;
       targetTask.subtopicId = subtopic.id;
       targetTask.duration = subtopic.minutes || 45;
+      targetTask.autoAssigned = true;
     } else {
-      // Append a new block
-      tasks.push({
-        id: `task_custom_${Date.now()}`,
-        blockId: 'secondary',
-        blockTitle: `Custom Block (${subtopic.minutes || 45}m)`,
-        duration: subtopic.minutes || 45,
-        subject: Storage.getSubjectName(subjectId) || subjectId,
+      // Append a new free-form block
+      tasks.push(Storage.buildBlock(today, {
         subjectId: subjectId,
         topic: subtopic.title,
         unitTitle: unitTitle,
         subtopicId: subtopic.id,
-        status: 'pending',
-        scheduledDate: today,
-        completedAt: null
-      });
+        duration: subtopic.minutes || 45,
+        autoAssigned: true
+      }));
     }
 
     Storage.updateState(state);
