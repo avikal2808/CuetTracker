@@ -4,7 +4,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.join(__dirname, '..', 'public');
-const API_ROUTES = { '/api/extract-syllabus': '../public/api/extract-syllabus.js' };
+const API_ROUTES = { '/api/extract-syllabus': '../api/extract-syllabus.js' };
 const API_BODY_LIMIT = 8 * 1024 * 1024;
 
 // Local convenience: pick up GEMINI_API_KEY from a .env file next to package.json
